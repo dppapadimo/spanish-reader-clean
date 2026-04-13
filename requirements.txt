@@ -1,5 +1,0 @@
-streamlit
-pandas
-deep-translator
-PyPDF2
-openpyxl
