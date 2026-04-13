@@ -26,13 +26,7 @@ import spacy
 # ======================
 @st.cache_resource
 def load_spacy_model():
-    try:
-        return spacy.load("es_core_news_sm")
-    except:
-        import subprocess
-        subprocess.run(["python", "-m", "spacy", "download", "es_core_news_sm"])
-        return spacy.load("es_core_news_sm")
-
+    return spacy.load("es_core_news_sm")
 nlp = load_spacy_model()
 
 # ======================
