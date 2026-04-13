@@ -8,7 +8,7 @@
 # - Auto save to Excel
 # Date: 2026-04-13
 # ----------------------------------------
-st.caption("Version 4.7")
+# st.caption("Version 4.7")
 # ---------------------------------------
 import streamlit as st
 import pandas as pd
@@ -17,6 +17,9 @@ import PyPDF2
 from datetime import datetime
 from io import BytesIO
 import re
+# --------------------------------------
+st.caption("Version 4.7")
+# ---------------------------------------
 
 st.set_page_config(page_title="Spanish Reader", layout="wide")
 
