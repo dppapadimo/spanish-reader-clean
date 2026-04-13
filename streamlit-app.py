@@ -19,16 +19,13 @@ if "words_data" not in st.session_state:
 if "selected_words" not in st.session_state:
     st.session_state.selected_words = set()
 
-if "last_word" not in st.session_state:
-    st.session_state.last_word = ""
-
 # -----------------------
-# Clickable text
+# Clickable + highlight
 # -----------------------
 def make_clickable(text, selected_words):
     words = text.split()
-
     html = ""
+
     for w in words:
         clean = w.strip(".,;:!?¡¿()\"'").lower()
 
@@ -37,11 +34,9 @@ def make_clickable(text, selected_words):
             style = "background-color: yellow;"
 
         html += f"""
-        <span 
-            style="cursor:pointer; {style}" 
-            onclick="window.parent.postMessage({{word: '{clean}'}}, '*')">
+        <a href="?word={clean}" style="text-decoration:none; color:black; {style}">
             {w}
-        </span> 
+        </a> 
         """
 
     return html
@@ -93,64 +88,45 @@ def find_sentence(word, text):
     return ""
 
 # -----------------------
-# Display
+# Detect clicked word
+# -----------------------
+query_params = st.query_params
+clicked_word = query_params.get("word")
+
+# -----------------------
+# AUTO PROCESS
+# -----------------------
+if clicked_word and text:
+
+    if clicked_word not in st.session_state.selected_words:
+
+        try:
+            translation = GoogleTranslator(source='auto', target=target_lang).translate(clicked_word)
+        except:
+            translation = "Error"
+
+        sentence = find_sentence(clicked_word, text)
+
+        st.session_state.selected_words.add(clicked_word)
+
+        st.session_state.words_data.append({
+            "word": clicked_word,
+            "translation": translation,
+            "sentence": sentence,
+            "source": source_name,
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M")
+        })
+
+        st.success(f"{clicked_word} → {translation}")
+
+# -----------------------
+# Display text
 # -----------------------
 if text:
     st.subheader("📖 Κείμενο (tap λέξη)")
 
-    clickable_html = make_clickable(text, st.session_state.selected_words)
-
-    st.components.v1.html(f"""
-    <div id="text-area">{clickable_html}</div>
-
-    <script>
-    window.addEventListener("message", (event) => {{
-        const word = event.data.word;
-        const streamlitDoc = window.parent.document;
-
-        let input = streamlitDoc.querySelector('input[data-testid="stTextInput"]');
-
-        if(input){{
-            input.value = word;
-            input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-        }}
-    }});
-    </script>
-    """, height=300, scrolling=True)
-
-    # hidden input
-    selected_word = st.text_input("hidden", label_visibility="collapsed")
-
-    # -----------------------
-    # AUTO TRANSLATE
-    # -----------------------
-    if selected_word and selected_word != st.session_state.last_word:
-
-        st.session_state.last_word = selected_word
-
-        try:
-            translation = GoogleTranslator(source='auto', target=target_lang).translate(selected_word)
-        except:
-            translation = "Error"
-
-        sentence = find_sentence(selected_word, text)
-
-        st.success(f"{selected_word} → {translation}")
-
-        # highlight
-        st.session_state.selected_words.add(selected_word)
-
-        # avoid duplicates
-        exists = any(w["word"] == selected_word for w in st.session_state.words_data)
-
-        if not exists:
-            st.session_state.words_data.append({
-                "word": selected_word,
-                "translation": translation,
-                "sentence": sentence,
-                "source": source_name,
-                "date": datetime.now().strftime("%Y-%m-%d %H:%M")
-            })
+    html = make_clickable(text, st.session_state.selected_words)
+    st.markdown(html, unsafe_allow_html=True)
 
 # -----------------------
 # Excel
