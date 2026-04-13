@@ -3,3 +3,4 @@ pandas
 deep-translator
 PyPDF2
 openpyxl
+es-core-news-sm
