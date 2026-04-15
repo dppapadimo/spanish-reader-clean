@@ -1,15 +1,6 @@
 # ----------------------------------------
 # Spanish Vocabulary Reader
-# Version: 6.6 (Cloud-safe)
-# Features:
-# - Reading mode (text + PDF)
-# - Translation + save
-# - spaCy lemma + verb detection
-# - Flashcards mode
-# - Sequential / Random learning
-# - Next button
-# - SAFE loading (no crash in cloud)
-# Date: 2026-04-14
+# Version: 6.7 (POLISH)
 # ----------------------------------------
 
 import streamlit as st
@@ -22,11 +13,12 @@ import random
 import spacy
 
 # ======================
-# SAFE LOAD SPACY MODEL
+# LOAD SPACY
 # ======================
 @st.cache_resource
 def load_spacy_model():
     return spacy.load("es_core_news_sm")
+
 nlp = load_spacy_model()
 
 # ======================
@@ -35,7 +27,7 @@ nlp = load_spacy_model()
 st.set_page_config(page_title="Spanish Reader", layout="wide")
 
 st.title("📖 Spanish Vocabulary Reader")
-st.caption("Version 6.6")
+st.caption("Version 6.7 (Polish)")
 
 # ======================
 # SESSION STATE
@@ -64,6 +56,15 @@ def get_word_info(word):
         "pos": token.pos_,
         "is_verb": token.pos_ == "VERB"
     }
+
+def format_pos(pos):
+    mapping = {
+        "VERB": "ρήμα",
+        "NOUN": "ουσιαστικό",
+        "ADJ": "επίθετο",
+        "ADV": "επίρρημα"
+    }
+    return mapping.get(pos, pos)
 
 # ======================
 # MODE
@@ -107,7 +108,7 @@ if mode == "Read":
         st.subheader("📖 Text")
         st.text_area("", text, height=300)
 
-        st.subheader("✏️ Input word + Enter")
+        st.subheader("✏️ Input unknown word + Enter → translate + save")
 
         word = st.text_input("")
 
@@ -116,21 +117,21 @@ if mode == "Read":
             st.session_state.last_word = word
             clean = word.lower().strip()
 
-            # translation
             translation = GoogleTranslator(
                 source='auto',
                 target=target_lang
             ).translate(clean)
 
-            # NLP
             info = get_word_info(clean)
 
-            if info["is_verb"]:
-                display = f"{clean} → {translation} (VERB, lemma: {info['lemma']})"
-            else:
-                display = f"{clean} → {translation} ({info['pos']})"
+            # DISPLAY (CLEAN)
+            st.markdown(f"### {clean}")
+            st.success(translation)
 
-            st.success(display)
+            if info["is_verb"]:
+                st.info(f"ρήμα — {info['lemma']}")
+            else:
+                st.info(format_pos(info["pos"]))
 
             # SAVE
             exists = any(w["word"] == clean for w in st.session_state.words_data)
@@ -167,12 +168,14 @@ if mode == "Flashcards":
     else:
 
         words = st.session_state.words_data
+        total = len(words)
 
         learn_mode = st.radio("Order:", ["Sequential", "Random"])
 
-        # SELECT WORD
         if learn_mode == "Sequential":
-            word_obj = words[st.session_state.flash_index % len(words)]
+            index = st.session_state.flash_index % total
+            word_obj = words[index]
+            st.caption(f"Word {index+1} / {total}")
         else:
             word_obj = random.choice(words)
 
@@ -194,20 +197,7 @@ if mode == "Flashcards":
         if st.session_state.show_answer:
             st.success(word_obj["translation"])
             st.info(f"lemma: {word_obj.get('lemma','')}")
-            st.info(f"pos: {word_obj.get('pos','')}")
-
-            st.write("Difficulty:")
-
-            c1, c2, c3 = st.columns(3)
-
-            if c1.button("🟢 Easy"):
-                word_obj["difficulty"] = "easy"
-
-            if c2.button("🟡 Medium"):
-                word_obj["difficulty"] = "medium"
-
-            if c3.button("🔴 Hard"):
-                word_obj["difficulty"] = "hard"
+            st.info(f"pos: {format_pos(word_obj.get('pos',''))}")
 
 # ======================
 # EXPORT
