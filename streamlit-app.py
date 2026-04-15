@@ -1,6 +1,6 @@
 # ----------------------------------------
 # Spanish Vocabulary Reader
-# Version: 6.7 (POLISH)
+# Version: 6.9 (Smart NLP)
 # ----------------------------------------
 
 import streamlit as st
@@ -22,14 +22,6 @@ def load_spacy_model():
 nlp = load_spacy_model()
 
 # ======================
-# UI
-# ======================
-st.set_page_config(page_title="Spanish Reader", layout="wide")
-
-st.title("📖 Spanish Vocabulary Reader")
-st.caption("Version 6.7 (Polish)")
-
-# ======================
 # SESSION STATE
 # ======================
 if "words_data" not in st.session_state:
@@ -45,7 +37,7 @@ if "show_answer" not in st.session_state:
     st.session_state.show_answer = False
 
 # ======================
-# NLP FUNCTION
+# FUNCTIONS
 # ======================
 def get_word_info(word):
     doc = nlp(word)
@@ -62,9 +54,38 @@ def format_pos(pos):
         "VERB": "ρήμα",
         "NOUN": "ουσιαστικό",
         "ADJ": "επίθετο",
-        "ADV": "επίρρημα"
+        "ADV": "επίρρημα",
+        "PRON": "αντωνυμία",
+        "DET": "άρθρο",
+        "ADP": "πρόθεση",
+        "CCONJ": "σύνδεσμος",
+        "SCONJ": "υποτακτικός σύνδεσμος",
+        "NUM": "αριθμός",
+        "PART": "μόριο",
+        "INTJ": "επιφώνημα"
     }
     return mapping.get(pos, pos)
+
+# 🔥 NEW: smarter sentence extraction
+def extract_sentence(text, target_word):
+    doc = nlp(text)
+    target_doc = nlp(target_word)
+    target_lemma = target_doc[0].lemma_
+
+    for sent in doc.sents:
+        for token in sent:
+            if token.lemma_ == target_lemma:
+                return sent.text.strip()
+
+    return ""
+
+# ======================
+# UI
+# ======================
+st.set_page_config(page_title="Spanish Reader", layout="wide")
+
+st.title("📖 Spanish Vocabulary Reader")
+st.caption("Version 6.9 (Smart NLP)")
 
 # ======================
 # MODE
@@ -123,8 +144,9 @@ if mode == "Read":
             ).translate(clean)
 
             info = get_word_info(clean)
+            sentence = extract_sentence(text, clean)
 
-            # DISPLAY (CLEAN)
+            # DISPLAY
             st.markdown(f"### {clean}")
             st.success(translation)
 
@@ -132,6 +154,9 @@ if mode == "Read":
                 st.info(f"ρήμα — {info['lemma']}")
             else:
                 st.info(format_pos(info["pos"]))
+
+            if sentence:
+                st.caption(f"📌 {sentence}")
 
             # SAVE
             exists = any(w["word"] == clean for w in st.session_state.words_data)
@@ -142,6 +167,7 @@ if mode == "Read":
                     "translation": translation,
                     "lemma": info["lemma"],
                     "pos": info["pos"],
+                    "sentence": sentence,
                     "difficulty": "medium",
                     "source": source_name,
                     "date": datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -198,6 +224,22 @@ if mode == "Flashcards":
             st.success(word_obj["translation"])
             st.info(f"lemma: {word_obj.get('lemma','')}")
             st.info(f"pos: {format_pos(word_obj.get('pos',''))}")
+
+            if word_obj.get("sentence"):
+                st.caption(f"📌 {word_obj['sentence']}")
+
+            st.write("Difficulty:")
+
+            c1, c2, c3 = st.columns(3)
+
+            if c1.button("🟢 Easy"):
+                word_obj["difficulty"] = "easy"
+
+            if c2.button("🟡 Medium"):
+                word_obj["difficulty"] = "medium"
+
+            if c3.button("🔴 Hard"):
+                word_obj["difficulty"] = "hard"
 
 # ======================
 # EXPORT
