@@ -1,8 +1,8 @@
 streamlit==1.32.0
-pandas==2.2.2
-deep-translator==1.11.4
-PyPDF2==3.0.1
-openpyxl==3.1.2
+pandas
+deep-translator
+PyPDF2
+python-docx
+openpyxl
 spacy==3.7.2
 https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.7.0/es_core_news_sm-3.7.0-py3-none-any.whl
-
