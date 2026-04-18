@@ -1,6 +1,6 @@
 # ----------------------------------------
 # Spanish Reader
-# Version: 7.4 (Stable Read + Audio + Flashcards)
+# Version 7.5 (Excel + Flashcards + Calendar)
 # ----------------------------------------
 
 import streamlit as st
@@ -8,10 +8,16 @@ import pandas as pd
 from deep_translator import GoogleTranslator
 import PyPDF2
 from docx import Document
-from datetime import datetime
-from io import BytesIO
-import random
+from datetime import datetime, date
+import os
+import calendar
 import spacy
+
+# ======================
+# FILES
+# ======================
+WORDS_FILE = "words.xlsx"
+LOG_FILE = "study_log.xlsx"
 
 # ======================
 # LOAD SPACY
@@ -23,13 +29,35 @@ def load_spacy_model():
 nlp = load_spacy_model()
 
 # ======================
-# SESSION
+# LOAD / SAVE WORDS
+# ======================
+def load_words():
+    if os.path.exists(WORDS_FILE):
+        return pd.read_excel(WORDS_FILE).to_dict("records")
+    return []
+
+def save_words(data):
+    pd.DataFrame(data).to_excel(WORDS_FILE, index=False)
+
+# ======================
+# LOAD / SAVE LOG
+# ======================
+def load_log():
+    if os.path.exists(LOG_FILE):
+        return pd.read_excel(LOG_FILE)["date"].tolist()
+    return []
+
+def save_log(log):
+    pd.DataFrame({"date": log}).to_excel(LOG_FILE, index=False)
+
+# ======================
+# INIT STATE
 # ======================
 if "words_data" not in st.session_state:
-    st.session_state.words_data = []
+    st.session_state.words_data = load_words()
 
-if "last_word" not in st.session_state:
-    st.session_state.last_word = ""
+if "study_log" not in st.session_state:
+    st.session_state.study_log = load_log()
 
 if "flash_index" not in st.session_state:
     st.session_state.flash_index = 0
@@ -40,75 +68,38 @@ if "show_answer" not in st.session_state:
 # ======================
 # FUNCTIONS
 # ======================
-def get_word_info(word):
-    doc = nlp(word)
-    token = doc[0]
-    return token.lemma_, token.pos_
+def translate(word, target="el"):
+    return GoogleTranslator(source="auto", target=target).translate(word)
 
-def extract_sentence(text, word):
-    doc = nlp(text)
-    lemma = nlp(word)[0].lemma_
-
-    for sent in doc.sents:
-        for token in sent:
-            if token.lemma_ == lemma:
-                return sent.text.strip()
-    return ""
-
-def process_word(word, text, target_lang):
-    clean = word.lower().strip()
-
-    if not clean or clean == st.session_state.last_word:
-        return
-
-    st.session_state.last_word = clean
-
-    translation = GoogleTranslator(
-        source='auto',
-        target=target_lang
-    ).translate(clean)
-
-    lemma, pos = get_word_info(clean)
-    sentence = extract_sentence(text, clean)
-
-    st.success(translation)
-    st.info(f"{pos} — {lemma}")
-
-    if sentence:
-        st.caption(f"📌 {sentence}")
-
-    exists = any(w["word"] == clean for w in st.session_state.words_data)
+def add_word(word, translation, lemma, pos, sentence):
+    exists = any(w["word"] == word for w in st.session_state.words_data)
 
     if not exists:
         st.session_state.words_data.append({
-            "word": clean,
+            "word": word,
             "translation": translation,
             "lemma": lemma,
             "pos": pos,
             "sentence": sentence,
             "difficulty": "medium",
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M")
+            "date": str(date.today())
         })
 
-# ======================
-# FILE READERS
-# ======================
-def read_pdf(file):
-    reader = PyPDF2.PdfReader(file)
-    return "\n".join([p.extract_text() for p in reader.pages])
+        save_words(st.session_state.words_data)
 
-def read_docx(file):
-    doc = Document(file)
-    return "\n".join([p.text for p in doc.paragraphs])
+def mark_today():
+    today = str(date.today())
+    if today not in st.session_state.study_log:
+        st.session_state.study_log.append(today)
+        save_log(st.session_state.study_log)
 
 # ======================
 # UI
 # ======================
 st.set_page_config(layout="wide")
-st.title("📖 Spanish Reader")
-st.caption("Version 7.4")
+st.title("📖 Spanish Reader v7.5")
 
-mode = st.radio("Mode:", ["Read", "Audio", "Flashcards"])
+mode = st.radio("Mode:", ["Read", "Audio", "Flashcards", "Calendar"])
 
 # ======================
 # READ MODE
@@ -117,49 +108,44 @@ if mode == "Read":
 
     st.subheader("📄 Input Text")
 
-    option = st.radio(
-        "Choose input:",
-        ["Paste text", "Upload file"]
-    )
+    option = st.radio("Input:", ["Paste", "Upload"])
 
     text = ""
 
-    if option == "Paste text":
+    if option == "Paste":
         text = st.text_area("Paste text", height=300)
 
-    elif option == "Upload file":
-        file = st.file_uploader("Upload TXT / PDF / DOCX", type=["txt", "pdf", "docx"])
+    else:
+        file = st.file_uploader("Upload txt/pdf/docx", type=["txt", "pdf", "docx"])
 
         if file:
             if file.type == "text/plain":
                 text = file.read().decode("utf-8")
+
             elif file.type == "application/pdf":
-                text = read_pdf(file)
+                reader = PyPDF2.PdfReader(file)
+                text = "\n".join([p.extract_text() for p in reader.pages])
+
             else:
-                text = read_docx(file)
+                doc = Document(file)
+                text = "\n".join([p.text for p in doc.paragraphs])
 
             text = st.text_area("Text", text, height=300)
 
-    lang = st.selectbox("Translate to:", ["Greek", "English"])
-    target_lang = "el" if lang == "Greek" else "en"
-
     if text:
 
-        st.subheader("✏️ input unknown word + Enter")
-        word = st.text_input("")
+        word = st.text_input("Unknown word")
 
         if word:
-            process_word(word, text, target_lang)
 
-        if st.session_state.words_data:
-            st.subheader("📚 Words")
+            lemma = word.lower()
+            translation = translate(word)
+            pos = "unknown"
+            sentence = ""
 
-            view = "\n".join([
-                f"{w['word']} → {w['translation']} ({w['pos']})"
-                for w in st.session_state.words_data
-            ])
+            st.success(translation)
 
-            st.text_area("", view, height=200)
+            add_word(word, translation, lemma, pos, sentence)
 
 # ======================
 # AUDIO MODE
@@ -168,92 +154,104 @@ if mode == "Audio":
 
     st.subheader("🎧 Upload Audio")
 
-    audio = st.file_uploader("Upload audio", type=["mp3", "wav", "m4a"])
+    audio = st.file_uploader("Audio file", type=["mp3", "wav", "m4a"])
 
     if audio:
         st.audio(audio)
 
     st.subheader("📝 Paste transcript")
-
-    text = st.text_area("Paste transcript here", height=300)
-
-    lang = st.selectbox("Translate to:", ["Greek", "English"])
-    target_lang = "el" if lang == "Greek" else "en"
+    text = st.text_area("Transcript", height=300)
 
     if text:
 
-        st.subheader("✏️ input unknown word + Enter")
-        word = st.text_input("audio_word")
+        word = st.text_input("Unknown word (audio)")
 
         if word:
-            process_word(word, text, target_lang)
 
-        if st.session_state.words_data:
-            st.subheader("📚 Words")
+            translation = translate(word)
 
-            view = "\n".join([
-                f"{w['word']} → {w['translation']} ({w['pos']})"
-                for w in st.session_state.words_data
-            ])
+            st.success(translation)
 
-            st.text_area("", view, height=200)
+            add_word(word, translation, word.lower(), "unknown", "")
 
 # ======================
 # FLASHCARDS
 # ======================
 if mode == "Flashcards":
 
-    if not st.session_state.words_data:
-        st.warning("No words yet.")
+    words = st.session_state.words_data
+
+    if not words:
+        st.warning("No words yet")
     else:
 
-        mode_fc = st.radio("Mode:", ["Serial", "Random"])
+        mode_fc = st.radio("Mode", ["Serial", "Random"])
 
-        words = st.session_state.words_data
+        import random
 
         if mode_fc == "Random":
-            word = random.choice(words)
+            w = random.choice(words)
         else:
-            index = st.session_state.flash_index % len(words)
-            word = words[index]
+            w = words[st.session_state.flash_index % len(words)]
 
-        st.markdown(f"## {word['word']}")
+        st.markdown(f"## {w['word']}")
 
         if st.button("Show answer"):
-            st.session_state.show_answer = True
+            st.success(w["translation"])
 
         if st.button("Next"):
             st.session_state.flash_index += 1
-            st.session_state.show_answer = False
             st.rerun()
 
-        if st.session_state.show_answer:
-            st.success(word["translation"])
-            st.info(word.get("sentence", ""))
-
-            difficulty = st.radio(
-                "Difficulty",
-                ["easy", "medium", "hard"],
-                key=f"diff_{word['word']}"
-            )
-
-            word["difficulty"] = difficulty
+        difficulty = st.radio("Difficulty", ["easy", "medium", "hard"], key=w["word"])
+        w["difficulty"] = difficulty
 
 # ======================
-# EXPORT
+# CALENDAR (PRETTY)
+# ======================
+if mode == "Calendar":
+
+    st.subheader("📅 Study Calendar")
+
+    mark_today()
+
+    today = date.today()
+    year = today.year
+    month = today.month
+
+    cal = calendar.monthcalendar(year, month)
+
+    cols = st.columns(7)
+
+    days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+
+    for i, d in enumerate(days):
+        cols[i].markdown(f"**{d}**")
+
+    for week in cal:
+        cols = st.columns(7)
+        for i, day in enumerate(week):
+            if day == 0:
+                cols[i].write("")
+            else:
+                d_str = f"{year}-{month:02d}-{day:02d}"
+
+                if d_str in st.session_state.study_log:
+                    cols[i].success(day)
+                else:
+                    cols[i].write(day)
+
+# ======================
+# EXPORT (optional backup)
 # ======================
 if st.session_state.words_data:
 
     df = pd.DataFrame(st.session_state.words_data)
 
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False)
-
     st.download_button(
-        "💾 Download Excel",
-        buffer.getvalue(),
-        file_name="words.xlsx"
+        "💾 Export Excel",
+        df.to_csv(index=False).encode(),
+        file_name="words_backup.csv"
     )
 
 # ======================
@@ -261,4 +259,4 @@ if st.session_state.words_data:
 # ======================
 if st.button("❌ Reset"):
     st.session_state.words_data = []
-    st.session_state.flash_index = 0
+    st.session_state.study_log = []
