@@ -1,6 +1,6 @@
-# ----------------------------------------
-# Spanish Vocabulary Reader
-# Version: 7.2 (Audio MVP)
+        # ----------------------------------------
+# Spanish Reader
+# Version: 7.3 (Clickable + Highlight + Auto-detect)
 # ----------------------------------------
 
 import streamlit as st
@@ -9,15 +9,8 @@ from deep_translator import GoogleTranslator
 import PyPDF2
 from datetime import datetime
 from io import BytesIO
-import random
 import spacy
-from openai import OpenAI
-import tempfile
-
-# ======================
-# OPENAI CLIENT
-# ======================
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+import re
 
 # ======================
 # LOAD SPACY
@@ -34,21 +27,15 @@ nlp = load_spacy_model()
 if "words_data" not in st.session_state:
     st.session_state.words_data = []
 
-if "last_word" not in st.session_state:
-    st.session_state.last_word = ""
-
-if "flash_index" not in st.session_state:
-    st.session_state.flash_index = 0
-
-if "show_answer" not in st.session_state:
-    st.session_state.show_answer = False
-
-if "audio_text" not in st.session_state:
-    st.session_state.audio_text = ""
+if "selected_words" not in st.session_state:
+    st.session_state.selected_words = set()
 
 # ======================
 # FUNCTIONS
 # ======================
+def clean_word(word):
+    return re.sub(r"[^\wáéíóúñü]", "", word.lower())
+
 def get_word_info(word):
     doc = nlp(word)
     token = doc[0]
@@ -56,126 +43,126 @@ def get_word_info(word):
 
 def extract_sentence(text, word):
     doc = nlp(text)
-    target = nlp(word)[0].lemma_
+    lemma = nlp(word)[0].lemma_
 
     for sent in doc.sents:
         for token in sent:
-            if token.lemma_ == target:
-                return sent.text.strip()
+            if token.lemma_ == lemma:
+                return sent.text
     return ""
 
-def transcribe_audio(file):
-    with tempfile.NamedTemporaryFile(delete=False) as tmp:
-        tmp.write(file.read())
-        tmp_path = tmp.name
+def translate(word, target="el"):
+    return GoogleTranslator(source='auto', target=target).translate(word)
 
-    with open(tmp_path, "rb") as audio_file:
-        transcript = client.audio.transcriptions.create(
-            model="gpt-4o-transcribe",
-            file=audio_file
-        )
+def add_word(word, text, target_lang):
+    clean = clean_word(word)
+    if not clean:
+        return
 
-    return transcript.text
+    if clean in st.session_state.selected_words:
+        return
+
+    translation = translate(clean, target_lang)
+    lemma, pos = get_word_info(clean)
+    sentence = extract_sentence(text, clean)
+
+    st.session_state.selected_words.add(clean)
+
+    st.session_state.words_data.append({
+        "word": clean,
+        "translation": translation,
+        "lemma": lemma,
+        "pos": pos,
+        "sentence": sentence,
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M")
+    })
 
 # ======================
 # UI
 # ======================
 st.set_page_config(layout="wide")
-st.title("📖 Spanish Reader + Audio")
-st.caption("Version 7.2")
+st.title("📖 Spanish Reader")
+st.caption("Version 7.3")
 
-mode = st.radio("Mode:", ["Read", "Audio", "Flashcards"])
+mode = st.radio("Mode:", ["Read", "Flashcards"])
 
 # ======================
 # READ MODE
 # ======================
 if mode == "Read":
 
-    text = st.text_area("Paste text", height=200)
+    st.subheader("📄 Input Text")
 
-# ======================
-# AUDIO MODE
-# ======================
-elif mode == "Audio":
-
-    st.subheader("🎧 Upload Audio")
-
-    audio_file = st.file_uploader(
-        "Upload podcast / audio",
-        type=["mp3", "wav", "m4a"]
+    option = st.radio(
+        "Choose input method:",
+        ["Paste text", "Upload file"]
     )
 
-    if audio_file:
-        st.audio(audio_file)
+    text = ""
 
-        if st.button("🧠 Transcribe"):
+    if option == "Paste text":
+        text = st.text_area("Paste text", height=300)
 
-            with st.spinner("Transcribing..."):
-                text = transcribe_audio(audio_file)
-                st.session_state.audio_text = text
+    elif option == "Upload file":
+        uploaded_file = st.file_uploader("Upload TXT or PDF", type=["txt", "pdf"])
 
-    text = st.session_state.audio_text
+        if uploaded_file:
+            if uploaded_file.type == "text/plain":
+                text = uploaded_file.read().decode("utf-8")
 
-# ======================
-# COMMON TEXT PROCESSING
-# ======================
-if mode in ["Read", "Audio"]:
+            elif uploaded_file.type == "application/pdf":
+                reader = PyPDF2.PdfReader(uploaded_file)
+                pages = [p.extract_text() for p in reader.pages]
+                text = "\n".join(pages)
+
+            text = st.text_area("Text", text, height=300)
 
     lang = st.selectbox("Translate to:", ["Greek", "English"])
     target_lang = "el" if lang == "Greek" else "en"
 
-    if "text" in locals() and text:
+    if text:
 
-        st.subheader("📖 Text")
-        st.text_area("", text, height=300)
+        st.subheader("🧠 Click words")
 
-        st.subheader("✏️ Input unknown word + Enter")
+        words = text.split()
 
-        word = st.text_input("")
+        # AUTO DETECT (long words)
+        auto_words = [w for w in words if len(clean_word(w)) > 6]
 
-        if word and word != st.session_state.last_word:
+        st.caption("⚡ Suggested difficult words")
 
-            st.session_state.last_word = word
-            clean = word.lower().strip()
+        for w in auto_words[:20]:
+            if st.button(f"⭐ {clean_word(w)}"):
+                add_word(w, text, target_lang)
 
-            translation = GoogleTranslator(
-                source='auto',
-                target=target_lang
-            ).translate(clean)
+        st.divider()
 
-            lemma, pos = get_word_info(clean)
-            sentence = extract_sentence(text, clean)
+        st.subheader("📖 Text (click words)")
 
-            st.markdown(f"### {clean}")
-            st.success(translation)
-            st.info(f"{pos} — {lemma}")
+        cols = st.columns(6)
 
-            if sentence:
-                st.caption(f"📌 {sentence}")
+        for i, w in enumerate(words):
+            clean = clean_word(w)
 
-            exists = any(w["word"] == clean for w in st.session_state.words_data)
+            if clean in st.session_state.selected_words:
+                label = f"🟡 {clean}"
+            else:
+                label = clean
 
-            if not exists:
-                st.session_state.words_data.append({
-                    "word": clean,
-                    "translation": translation,
-                    "lemma": lemma,
-                    "pos": pos,
-                    "sentence": sentence,
-                    "date": datetime.now().strftime("%Y-%m-%d %H:%M")
-                })
+            with cols[i % 6]:
+                if st.button(label, key=f"{i}_{clean}"):
+                    add_word(w, text, target_lang)
 
         # WORD LIST
         if st.session_state.words_data:
+            st.subheader("📚 Learned words")
 
-            st.subheader("📚 Words")
-
-            txt = "\n".join([
-                f"{w['word']} → {w['translation']}"
+            text_view = "\n".join([
+                f"{w['word']} → {w['translation']} ({w['pos']})"
                 for w in st.session_state.words_data
             ])
 
-            st.text_area("", txt, height=200)
+            st.text_area("", text_view, height=200)
 
 # ======================
 # FLASHCARDS
@@ -186,23 +173,15 @@ if mode == "Flashcards":
         st.warning("No words yet.")
     else:
 
-        words = st.session_state.words_data
-        index = st.session_state.flash_index % len(words)
-        word_obj = words[index]
+        import random
 
-        st.markdown(f"## {word_obj['word']}")
+        word = random.choice(st.session_state.words_data)
+
+        st.markdown(f"## {word['word']}")
 
         if st.button("Show answer"):
-            st.session_state.show_answer = True
-
-        if st.button("Next"):
-            st.session_state.flash_index += 1
-            st.session_state.show_answer = False
-            st.rerun()
-
-        if st.session_state.show_answer:
-            st.success(word_obj["translation"])
-            st.info(word_obj.get("sentence", ""))
+            st.success(word["translation"])
+            st.info(word.get("sentence", ""))
 
 # ======================
 # EXPORT
@@ -226,5 +205,4 @@ if st.session_state.words_data:
 # ======================
 if st.button("❌ Reset"):
     st.session_state.words_data = []
-    st.session_state.flash_index = 0
-    st.session_state.audio_text = ""
+    st.session_state.selected_words = set()
