@@ -1,6 +1,6 @@
 # ----------------------------------------
 # Spanish Reader
-# Version 7.5 (Excel + Flashcards + Calendar)
+# Version 7.6 (Anki-style Flashcards + Excel DB)
 # ----------------------------------------
 
 import streamlit as st
@@ -8,19 +8,19 @@ import pandas as pd
 from deep_translator import GoogleTranslator
 import PyPDF2
 from docx import Document
-from datetime import datetime, date
-import os
+from datetime import datetime, date, timedelta
 import calendar
+import os
 import spacy
 
 # ======================
 # FILES
 # ======================
-WORDS_FILE = "words.xlsx"
+WORDS_FILE = "spanish_words_unknown.xlsx"
 LOG_FILE = "study_log.xlsx"
 
 # ======================
-# LOAD SPACY
+# LOAD NLP
 # ======================
 @st.cache_resource
 def load_spacy_model():
@@ -29,185 +29,189 @@ def load_spacy_model():
 nlp = load_spacy_model()
 
 # ======================
-# LOAD / SAVE WORDS
+# LOAD WORDS DB (APPEND ONLY BASE)
 # ======================
 def load_words():
     if os.path.exists(WORDS_FILE):
-        return pd.read_excel(WORDS_FILE).to_dict("records")
-    return []
+        df = pd.read_excel(WORDS_FILE)
+    else:
+        df = pd.DataFrame(columns=[
+            "word","translation","lemma","pos","sentence",
+            "difficulty","date",
+            "ease","interval","repetitions","next_review"
+        ])
+    return df
 
-def save_words(data):
-    pd.DataFrame(data).to_excel(WORDS_FILE, index=False)
-
-# ======================
-# LOAD / SAVE LOG
-# ======================
-def load_log():
-    if os.path.exists(LOG_FILE):
-        return pd.read_excel(LOG_FILE)["date"].tolist()
-    return []
-
-def save_log(log):
-    pd.DataFrame({"date": log}).to_excel(LOG_FILE, index=False)
+def save_words(df):
+    df.to_excel(WORDS_FILE, index=False)
 
 # ======================
 # INIT STATE
 # ======================
-if "words_data" not in st.session_state:
-    st.session_state.words_data = load_words()
-
-if "study_log" not in st.session_state:
-    st.session_state.study_log = load_log()
+if "df" not in st.session_state:
+    st.session_state.df = load_words()
 
 if "flash_index" not in st.session_state:
     st.session_state.flash_index = 0
 
-if "show_answer" not in st.session_state:
-    st.session_state.show_answer = False
+if "show" not in st.session_state:
+    st.session_state.show = False
+
+if "study_log" not in st.session_state:
+    if os.path.exists(LOG_FILE):
+        st.session_state.study_log = pd.read_excel(LOG_FILE)["date"].tolist()
+    else:
+        st.session_state.study_log = []
 
 # ======================
-# FUNCTIONS
+# TRANSLATION
 # ======================
-def translate(word, target="el"):
-    return GoogleTranslator(source="auto", target=target).translate(word)
+def translate(word):
+    return GoogleTranslator(source="auto", target="el").translate(word)
 
+# ======================
+# ADD WORD (APPEND ONLY + SRS INIT)
+# ======================
 def add_word(word, translation, lemma, pos, sentence):
-    exists = any(w["word"] == word for w in st.session_state.words_data)
 
-    if not exists:
-        st.session_state.words_data.append({
-            "word": word,
-            "translation": translation,
-            "lemma": lemma,
-            "pos": pos,
-            "sentence": sentence,
-            "difficulty": "medium",
-            "date": str(date.today())
-        })
+    df = st.session_state.df
 
-        save_words(st.session_state.words_data)
+    if word in df["word"].values:
+        return
 
+    new_row = {
+        "word": word,
+        "translation": translation,
+        "lemma": lemma,
+        "pos": pos,
+        "sentence": sentence,
+        "difficulty": "medium",
+        "date": str(date.today()),
+
+        # SRS fields
+        "ease": 2.5,
+        "interval": 1,
+        "repetitions": 0,
+        "next_review": str(date.today())
+    }
+
+    st.session_state.df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    save_words(st.session_state.df)
+
+# ======================
+# SRS UPDATE (ANKI STYLE)
+# ======================
+def update_srs(row, correct: bool):
+
+    if correct:
+        row["repetitions"] += 1
+        row["ease"] = min(3.0, row["ease"] + 0.1)
+
+        if row["repetitions"] == 1:
+            row["interval"] = 1
+        elif row["repetitions"] == 2:
+            row["interval"] = 3
+        else:
+            row["interval"] = int(row["interval"] * row["ease"])
+
+    else:
+        row["repetitions"] = 0
+        row["ease"] = max(1.3, row["ease"] - 0.2)
+        row["interval"] = 1
+
+    row["next_review"] = str(date.today() + timedelta(days=row["interval"]))
+    return row
+
+# ======================
+# FLASHCARDS FILTER
+# ======================
+def get_due_words(df):
+    today = str(date.today())
+    return df[df["next_review"] <= today]
+
+# ======================
+# CALENDAR
+# ======================
 def mark_today():
     today = str(date.today())
     if today not in st.session_state.study_log:
         st.session_state.study_log.append(today)
-        save_log(st.session_state.study_log)
+
+        pd.DataFrame({"date": st.session_state.study_log}).to_excel(LOG_FILE, index=False)
 
 # ======================
 # UI
 # ======================
 st.set_page_config(layout="wide")
-st.title("📖 Spanish Reader v7.5")
+st.title("📖 Spanish Reader v7.6 (Anki Style)")
 
-mode = st.radio("Mode:", ["Read", "Audio", "Flashcards", "Calendar"])
+mode = st.radio("Mode", ["Read", "Flashcards", "Calendar"])
 
 # ======================
 # READ MODE
 # ======================
 if mode == "Read":
 
-    st.subheader("📄 Input Text")
+    text = st.text_area("Paste text", height=300)
 
-    option = st.radio("Input:", ["Paste", "Upload"])
+    word = st.text_input("Unknown word")
 
-    text = ""
+    if word:
+        translation = translate(word)
 
-    if option == "Paste":
-        text = st.text_area("Paste text", height=300)
+        st.success(translation)
 
-    else:
-        file = st.file_uploader("Upload txt/pdf/docx", type=["txt", "pdf", "docx"])
+        add_word(word, translation, word.lower(), "unknown", "")
 
-        if file:
-            if file.type == "text/plain":
-                text = file.read().decode("utf-8")
-
-            elif file.type == "application/pdf":
-                reader = PyPDF2.PdfReader(file)
-                text = "\n".join([p.extract_text() for p in reader.pages])
-
-            else:
-                doc = Document(file)
-                text = "\n".join([p.text for p in doc.paragraphs])
-
-            text = st.text_area("Text", text, height=300)
-
-    if text:
-
-        word = st.text_input("Unknown word")
-
-        if word:
-
-            lemma = word.lower()
-            translation = translate(word)
-            pos = "unknown"
-            sentence = ""
-
-            st.success(translation)
-
-            add_word(word, translation, lemma, pos, sentence)
+        st.session_state.df.to_excel(WORDS_FILE, index=False)
 
 # ======================
-# AUDIO MODE
-# ======================
-if mode == "Audio":
-
-    st.subheader("🎧 Upload Audio")
-
-    audio = st.file_uploader("Audio file", type=["mp3", "wav", "m4a"])
-
-    if audio:
-        st.audio(audio)
-
-    st.subheader("📝 Paste transcript")
-    text = st.text_area("Transcript", height=300)
-
-    if text:
-
-        word = st.text_input("Unknown word (audio)")
-
-        if word:
-
-            translation = translate(word)
-
-            st.success(translation)
-
-            add_word(word, translation, word.lower(), "unknown", "")
-
-# ======================
-# FLASHCARDS
+# FLASHCARDS (ANKI STYLE)
 # ======================
 if mode == "Flashcards":
 
-    words = st.session_state.words_data
+    df = get_due_words(st.session_state.df)
 
-    if not words:
-        st.warning("No words yet")
+    if df.empty:
+        st.warning("No cards due today 🎉")
     else:
 
-        mode_fc = st.radio("Mode", ["Serial", "Random"])
+        idx = st.session_state.flash_index % len(df)
+        row = df.iloc[idx]
 
-        import random
-
-        if mode_fc == "Random":
-            w = random.choice(words)
-        else:
-            w = words[st.session_state.flash_index % len(words)]
-
-        st.markdown(f"## {w['word']}")
+        st.markdown(f"## {row['word']}")
 
         if st.button("Show answer"):
-            st.success(w["translation"])
+            st.session_state.show = True
+
+        if st.session_state.show:
+            st.success(row["translation"])
+            st.info(row.get("sentence",""))
+
+            col1, col2 = st.columns(2)
+
+            if col1.button("✔ Correct"):
+                updated = update_srs(row, True)
+                st.session_state.df.loc[st.session_state.df["word"] == row["word"], :] = updated
+                save_words(st.session_state.df)
+                st.session_state.show = False
+                st.session_state.flash_index += 1
+                st.rerun()
+
+            if col2.button("❌ Wrong"):
+                updated = update_srs(row, False)
+                st.session_state.df.loc[st.session_state.df["word"] == row["word"], :] = updated
+                save_words(st.session_state.df)
+                st.session_state.show = False
+                st.session_state.flash_index += 1
+                st.rerun()
 
         if st.button("Next"):
             st.session_state.flash_index += 1
             st.rerun()
 
-        difficulty = st.radio("Difficulty", ["easy", "medium", "hard"], key=w["word"])
-        w["difficulty"] = difficulty
-
 # ======================
-# CALENDAR (PRETTY)
+# CALENDAR
 # ======================
 if mode == "Calendar":
 
@@ -216,20 +220,19 @@ if mode == "Calendar":
     mark_today()
 
     today = date.today()
-    year = today.year
-    month = today.month
+    year, month = today.year, today.month
 
     cal = calendar.monthcalendar(year, month)
 
-    cols = st.columns(7)
-
     days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+    cols = st.columns(7)
 
     for i, d in enumerate(days):
         cols[i].markdown(f"**{d}**")
 
     for week in cal:
         cols = st.columns(7)
+
         for i, day in enumerate(week):
             if day == 0:
                 cols[i].write("")
@@ -240,23 +243,3 @@ if mode == "Calendar":
                     cols[i].success(day)
                 else:
                     cols[i].write(day)
-
-# ======================
-# EXPORT (optional backup)
-# ======================
-if st.session_state.words_data:
-
-    df = pd.DataFrame(st.session_state.words_data)
-
-    st.download_button(
-        "💾 Export Excel",
-        df.to_csv(index=False).encode(),
-        file_name="words_backup.csv"
-    )
-
-# ======================
-# RESET
-# ======================
-if st.button("❌ Reset"):
-    st.session_state.words_data = []
-    st.session_state.study_log = []
