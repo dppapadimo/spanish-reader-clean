@@ -1,4 +1,4 @@
-# =========================================
+in# =========================================
 # Spanish Reader v8.2 (STABLE)
 # =========================================
 
@@ -168,13 +168,14 @@ st.sidebar.subheader("📂 Load Existing Data")
 uploaded_excel = st.sidebar.file_uploader("Upload words Excel", type=["xlsx"])
 if uploaded_excel:
     pd.read_excel(uploaded_excel).to_excel(WORDS_FILE, index=False)
-    st.sidebar.success("Words loaded!")
+    st.success("Words loaded!")
     st.rerun
 
 uploaded_log = st.sidebar.file_uploader("Upload calendar Excel", type=["xlsx"])
 if uploaded_log:
     pd.read_excel(uploaded_log).to_excel(LOG_FILE, index=False)
-    st.sidebar.success("Log loaded!")
+    st.success("Log loaded!")
+    st.rerun
 
 # ======================
 # READ
