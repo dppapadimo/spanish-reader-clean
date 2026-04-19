@@ -165,17 +165,25 @@ if os.path.exists(LOG_FILE):
 # Upload
 st.sidebar.subheader("📂 Load Existing Data")
 
+if "words_uploaded" not in st.session_state:
+    st.session_state.words_uploaded = False
+
 uploaded_excel = st.sidebar.file_uploader("Upload words Excel", type=["xlsx"])
 if uploaded_excel:
     pd.read_excel(uploaded_excel).to_excel(WORDS_FILE, index=False)
+    st.session_state.words_uploaded = True
     st.success("Words loaded!")
-    st.rerun
+    st.rerun()
+    
+if "log_uploaded" not in st.session_state:
+    st.session_state.log_uploaded = False
 
 uploaded_log = st.sidebar.file_uploader("Upload calendar Excel", type=["xlsx"])
 if uploaded_log:
     pd.read_excel(uploaded_log).to_excel(LOG_FILE, index=False)
+    st.session_state.log_uploaded = True
     st.success("Log loaded!")
-    st.rerun
+    st.rerun()
 
 # ======================
 # READ
