@@ -1,6 +1,5 @@
 # =========================================
-# Spanish Reader v8.1 FIX PATCH
-# Read + Audio + Flashcards + Pro Calendar
+# Spanish Reader v8.2 (STABLE)
 # =========================================
 
 import streamlit as st
@@ -13,15 +12,9 @@ import calendar
 import os
 import spacy
 
-# ======================
-# FILES
-# ======================
 WORDS_FILE = "spanish_words_unknown.xlsx"
 LOG_FILE = "study_log.xlsx"
 
-# ======================
-# SPACY
-# ======================
 @st.cache_resource
 def load_spacy_model():
     return spacy.load("es_core_news_sm")
@@ -29,12 +22,11 @@ def load_spacy_model():
 nlp = load_spacy_model()
 
 # ======================
-# LOAD WORDS
+# LOAD / SAVE
 # ======================
 def load_words():
     if os.path.exists(WORDS_FILE):
         return pd.read_excel(WORDS_FILE)
-
     return pd.DataFrame(columns=[
         "word","translation","lemma","pos","sentence",
         "difficulty","date","ease","interval","repetitions","next_review"
@@ -43,13 +35,9 @@ def load_words():
 def save_words(df):
     df.to_excel(WORDS_FILE, index=False)
 
-# ======================
-# LOAD LOG
-# ======================
 def load_log():
     if os.path.exists(LOG_FILE):
         return pd.read_excel(LOG_FILE)
-
     return pd.DataFrame(columns=["date","count"])
 
 def save_log(df):
@@ -72,7 +60,6 @@ def analyze_word(word):
 def extract_sentence(text, word):
     if not text:
         return ""
-
     doc = nlp(text)
     for sent in doc.sents:
         if word.lower() in sent.text.lower():
@@ -83,7 +70,6 @@ def extract_sentence(text, word):
 # ADD WORD
 # ======================
 def add_word(word, translation, text):
-
     df = load_words()
 
     if word in df["word"].values:
@@ -110,28 +96,23 @@ def add_word(word, translation, text):
     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     save_words(df)
 
-    # update study log
     log = load_log()
-
     if today in log["date"].astype(str).values:
         log.loc[log["date"] == today, "count"] += 1
     else:
         log = pd.concat([log, pd.DataFrame([{"date": today, "count": 1}])])
-
     save_log(log)
 
     return df
 
 # ======================
-# SRS UPDATE
+# SRS
 # ======================
 def update_srs(row, correct):
-
     row = row.copy()
 
     if correct:
         row["repetitions"] += 1
-
         if row["repetitions"] == 1:
             row["interval"] = 1
         elif row["repetitions"] == 2:
@@ -163,16 +144,41 @@ def read_txt(file):
 # UI
 # ======================
 st.set_page_config(layout="wide")
-st.title("📖 Spanish Reader v8.1 FIX")
+st.title("📖 Spanish Reader v8.2")
 
 mode = st.radio("Mode", ["Read","Audio","Flashcards","Calendar"])
+
+# ======================
+# SIDEBAR DATA CONTROL
+# ======================
+st.sidebar.subheader("📁 Data Files")
+
+# Download
+if os.path.exists(WORDS_FILE):
+    with open(WORDS_FILE, "rb") as f:
+        st.sidebar.download_button("Download Words Excel", f, file_name=WORDS_FILE)
+
+if os.path.exists(LOG_FILE):
+    with open(LOG_FILE, "rb") as f:
+        st.sidebar.download_button("Download Calendar Excel", f, file_name=LOG_FILE)
+
+# Upload
+st.sidebar.subheader("📂 Load Existing Data")
+
+uploaded_excel = st.sidebar.file_uploader("Upload words Excel", type=["xlsx"])
+if uploaded_excel:
+    pd.read_excel(uploaded_excel).to_excel(WORDS_FILE, index=False)
+    st.sidebar.success("Words loaded!")
+
+uploaded_log = st.sidebar.file_uploader("Upload calendar Excel", type=["xlsx"])
+if uploaded_log:
+    pd.read_excel(uploaded_log).to_excel(LOG_FILE, index=False)
+    st.sidebar.success("Log loaded!")
 
 # ======================
 # READ
 # ======================
 if mode == "Read":
-
-    st.subheader("📖 Read")
 
     uploaded = st.file_uploader("Upload file", type=["pdf","docx","txt"])
 
@@ -193,15 +199,22 @@ if mode == "Read":
     if word:
         t = translate(word)
         st.success(t)
+
         df = add_word(word, t, text)
-        st.text_area("Saved words", df.to_string(), height=200)
+
+        pretty = ""
+        for _, r in df.iterrows():
+            pretty += f"{r['word']} → {r['translation']}\n"
+            pretty += f"({r['lemma']} | {r['pos']})\n"
+            pretty += f"{r['sentence']}\n"
+            pretty += "-"*40 + "\n"
+
+        st.text_area("Saved words", pretty, height=250)
 
 # ======================
 # AUDIO
 # ======================
 if mode == "Audio":
-
-    st.subheader("🎧 Audio")
 
     audio = st.file_uploader("Upload audio", type=["mp3","wav","m4a"])
 
@@ -215,70 +228,61 @@ if mode == "Audio":
     if word:
         t = translate(word)
         st.success(t)
+
         df = add_word(word, t, text)
-        st.text_area("Saved words", df.to_string(), height=200)
+
+        pretty = ""
+        for _, r in df.iterrows():
+            pretty += f"{r['word']} → {r['translation']}\n"
+            pretty += f"({r['lemma']} | {r['pos']})\n"
+            pretty += f"{r['sentence']}\n"
+            pretty += "-"*40 + "\n"
+
+        st.text_area("Saved words", pretty, height=250)
 
 # ======================
 # FLASHCARDS
 # ======================
 if mode == "Flashcards":
 
-    st.subheader("🧠 Flashcards")
-
     if "fc_index" not in st.session_state:
         st.session_state.fc_index = 0
 
     df = load_words()
     today = str(date.today())
-
     df = df[df["next_review"] <= today].reset_index(drop=True)
 
     if len(df) == 0:
         st.success("No cards today 🎉")
-
     else:
-        i = st.session_state.fc_index
-
-        if i >= len(df):
-            st.session_state.fc_index = 0
-            i = 0
-
+        i = st.session_state.fc_index % len(df)
         row = df.iloc[i]
 
         st.markdown(f"## {row['word']}")
 
         if st.button("Show"):
             st.success(row["translation"])
-            st.write("Lemma:", row["lemma"])
-            st.write("POS:", row["pos"])
-            st.write("Sentence:", row["sentence"])
+            st.write(row["lemma"], "|", row["pos"])
+            st.write(row["sentence"])
 
         col1, col2, col3 = st.columns(3)
 
         if col1.button("Correct"):
-
             updated = update_srs(row, True)
             full = load_words()
-
             idx = full.index[full["word"] == row["word"]][0]
-
             for k in updated.index:
                 full.at[idx, k] = updated[k]
-
             save_words(full)
             st.session_state.fc_index += 1
             st.rerun()
 
         if col2.button("Wrong"):
-
             updated = update_srs(row, False)
             full = load_words()
-
             idx = full.index[full["word"] == row["word"]][0]
-
             for k in updated.index:
                 full.at[idx, k] = updated[k]
-
             save_words(full)
             st.session_state.fc_index += 1
             st.rerun()
@@ -292,8 +296,6 @@ if mode == "Flashcards":
 # ======================
 if mode == "Calendar":
 
-    st.subheader("📅 Pro Calendar")
-
     log = load_log()
 
     today = date.today()
@@ -303,8 +305,12 @@ if mode == "Calendar":
 
     st.markdown(f"## {calendar.month_name[month]} {year}")
 
-    st.write("CHECK + HEATMAP")
+    # headers
+    cols = st.columns(7)
+    for i, d in enumerate(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]):
+        cols[i].markdown(f"**{d}**")
 
+    # grid
     for week in cal:
         cols = st.columns(7)
 
@@ -330,17 +336,4 @@ if mode == "Calendar":
                 else:
                     heat = "🟥"
 
-                cols[i].markdown(f"{check} {heat} {day}")
-
-# ======================
-# SIDEBAR DOWNLOAD
-# ======================
-st.sidebar.subheader("📁 Files")
-
-if os.path.exists(WORDS_FILE):
-    with open(WORDS_FILE, "rb") as f:
-        st.sidebar.download_button("Download Words Excel", f, file_name=WORDS_FILE)
-
-if os.path.exists(LOG_FILE):
-    with open(LOG_FILE, "rb") as f:
-        st.sidebar.download_button("Download Calendar Excel", f, file_name=LOG_FILE)
+                cols[i].markdown(f"{day}<br>{check} {heat}", unsafe_allow_html=True)
