@@ -1,6 +1,6 @@
 # ----------------------------------------
-# Spanish Reader
-# Version 7.7 (PRO Calendar + Anki SRS)
+# Spanish Reader v8.0 FINAL
+# Read + Audio + Flashcards + Pro Calendar
 # ----------------------------------------
 
 import streamlit as st
@@ -12,6 +12,7 @@ from datetime import datetime, date, timedelta
 import calendar
 import os
 import spacy
+import random
 
 # ======================
 # FILES
@@ -55,19 +56,36 @@ def save_log(df):
     df.to_excel(LOG_FILE, index=False)
 
 # ======================
-# INIT STATE
+# FILE READERS
 # ======================
-if "df" not in st.session_state:
-    st.session_state.df = load_words()
+def read_pdf(file):
+    reader = PyPDF2.PdfReader(file)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() + "\n"
+    return text
 
-if "log_df" not in st.session_state:
-    st.session_state.log_df = load_log()
+def read_docx(file):
+    doc = Document(file)
+    return "\n".join([p.text for p in doc.paragraphs])
 
-if "flash_index" not in st.session_state:
-    st.session_state.flash_index = 0
+def read_txt(file):
+    return file.read().decode("utf-8")
 
-if "show" not in st.session_state:
-    st.session_state.show = False
+# ======================
+# NLP
+# ======================
+def analyze_word(word):
+    doc = nlp(word)
+    token = doc[0]
+    return token.lemma_, token.pos_
+
+def extract_sentence(text, word):
+    doc = nlp(text)
+    for sent in doc.sents:
+        if word.lower() in sent.text.lower():
+            return sent.text
+    return ""
 
 # ======================
 # TRANSLATE
@@ -76,23 +94,27 @@ def translate(word):
     return GoogleTranslator(source="auto", target="el").translate(word)
 
 # ======================
-# ADD WORD + LOG COUNT
+# ADD WORD
 # ======================
-def add_word(word, translation):
+def add_word(word, text):
 
-    df = st.session_state.df
+    df = load_words()
 
     if word in df["word"].values:
-        return
+        return df
+
+    translation = translate(word)
+    lemma, pos = analyze_word(word)
+    sentence = extract_sentence(text, word)
 
     today = str(date.today())
 
     new_row = {
         "word": word,
         "translation": translation,
-        "lemma": word.lower(),
-        "pos": "unknown",
-        "sentence": "",
+        "lemma": lemma,
+        "pos": pos,
+        "sentence": sentence,
         "difficulty": "medium",
         "date": today,
         "ease": 2.5,
@@ -101,19 +123,19 @@ def add_word(word, translation):
         "next_review": today
     }
 
-    st.session_state.df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-    save_words(st.session_state.df)
+    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    save_words(df)
 
-    # update log count
-    log = st.session_state.log_df
-
+    # update log
+    log = load_log()
     if today in log["date"].values:
         log.loc[log["date"] == today, "count"] += 1
     else:
         log = pd.concat([log, pd.DataFrame([{"date": today, "count": 1}])])
 
-    st.session_state.log_df = log
     save_log(log)
+
+    return df
 
 # ======================
 # SRS UPDATE
@@ -140,17 +162,10 @@ def update_srs(row, correct):
     return row
 
 # ======================
-# DUE WORDS
-# ======================
-def get_due(df):
-    today = str(date.today())
-    return df[df["next_review"] <= today]
-
-# ======================
 # UI
 # ======================
 st.set_page_config(layout="wide")
-st.title("📖 Spanish Reader v7.7 PRO")
+st.title("📖 Spanish Reader v8.0")
 
 mode = st.radio("Mode", ["Read","Audio","Flashcards","Calendar"])
 
@@ -159,13 +174,27 @@ mode = st.radio("Mode", ["Read","Audio","Flashcards","Calendar"])
 # ======================
 if mode == "Read":
 
-    text = st.text_area("Paste text", height=300)
+    uploaded = st.file_uploader("Upload file", type=["pdf","docx","txt"])
+
+    text = ""
+
+    if uploaded:
+        if uploaded.name.endswith(".pdf"):
+            text = read_pdf(uploaded)
+        elif uploaded.name.endswith(".docx"):
+            text = read_docx(uploaded)
+        elif uploaded.name.endswith(".txt"):
+            text = read_txt(uploaded)
+
+    text = st.text_area("Text", value=text, height=300)
+
     word = st.text_input("Unknown word")
 
     if word:
-        t = translate(word)
-        st.success(t)
-        add_word(word, t)
+        df = add_word(word, text)
+        st.success("Saved!")
+
+        st.text_area("Saved words", df.to_string(), height=200)
 
 # ======================
 # AUDIO
@@ -178,24 +207,40 @@ if mode == "Audio":
         st.audio(audio)
 
     text = st.text_area("Paste transcript", height=300)
-    word = st.text_input("Unknown word audio")
+
+    word = st.text_input("Unknown word from audio")
 
     if word:
-        t = translate(word)
-        st.success(t)
-        add_word(word, t)
+        df = add_word(word, text)
+        st.success("Saved!")
+
+        st.text_area("Saved words", df.to_string(), height=200)
 
 # ======================
 # FLASHCARDS
 # ======================
 if mode == "Flashcards":
 
-    df = get_due(st.session_state.df)
+    df = load_words()
+
+    option = st.selectbox("Mode", ["Due","Random","Serial"])
+
+    if option == "Due":
+        df = df[df["next_review"] <= str(date.today())]
+    elif option == "Random":
+        df = df.sample(frac=1)
+    elif option == "Serial":
+        df = df.sort_values("date")
 
     if df.empty:
-        st.success("🎉 No cards due!")
+        st.info("No cards available")
     else:
-        row = df.iloc[st.session_state.flash_index % len(df)]
+        if "index" not in st.session_state:
+            st.session_state.index = 0
+        if "show" not in st.session_state:
+            st.session_state.show = False
+
+        row = df.iloc[st.session_state.index % len(df)]
 
         st.markdown(f"## {row['word']}")
 
@@ -203,78 +248,90 @@ if mode == "Flashcards":
             st.session_state.show = True
 
         if st.session_state.show:
-            st.success(row["translation"])
+            st.write(row["translation"])
+            st.write(f"lemma: {row['lemma']}")
+            st.write(f"pos: {row['pos']}")
+            st.write(f"sentence: {row['sentence']}")
 
             col1, col2 = st.columns(2)
 
-            if col1.button("✔"):
-                updated = update_srs(row, True)
-                st.session_state.df.loc[st.session_state.df["word"] == row["word"]] = updated
-                save_words(st.session_state.df)
+            if col1.button("Correct"):
+                updated = update_srs(row.copy(), True)
+                full = load_words()
+                full.loc[full["word"] == row["word"]] = updated
+                save_words(full)
+                st.session_state.index += 1
                 st.session_state.show = False
-                st.session_state.flash_index += 1
                 st.rerun()
 
-            if col2.button("❌"):
-                updated = update_srs(row, False)
-                st.session_state.df.loc[st.session_state.df["word"] == row["word"]] = updated
-                save_words(st.session_state.df)
+            if col2.button("Wrong"):
+                updated = update_srs(row.copy(), False)
+                full = load_words()
+                full.loc[full["word"] == row["word"]] = updated
+                save_words(full)
+                st.session_state.index += 1
                 st.session_state.show = False
-                st.session_state.flash_index += 1
                 st.rerun()
 
 # ======================
-# PRO CALENDAR
+# CALENDAR
 # ======================
 if mode == "Calendar":
 
-    st.subheader("🔥 Study Heatmap")
+    log = load_log()
 
-    log = st.session_state.log_df
+    today = date.today()
+    year, month = today.year, today.month
+    cal = calendar.monthcalendar(year, month)
 
-    if log.empty:
-        st.info("No data yet")
-    else:
+    st.subheader(f"{calendar.month_name[month]} {year}")
 
-        today = date.today()
-        year, month = today.year, today.month
+    # STREAK
+    log_sorted = log.sort_values("date", ascending=False)
+    streak = 0
 
-        cal = calendar.monthcalendar(year, month)
+    for i in range(len(log_sorted)):
+        d = datetime.strptime(log_sorted.iloc[i]["date"], "%Y-%m-%d").date()
+        if d == today - timedelta(days=streak):
+            streak += 1
+        else:
+            break
 
-        st.markdown(f"## {calendar.month_name[month]} {year}")
+    st.success(f"🔥 Streak: {streak} days")
 
-        # streak
-        log_sorted = log.sort_values("date", ascending=False)
-        streak = 0
+    st.markdown("### ✅ Activity Calendar")
 
-        for d in log_sorted["date"]:
-            if d == str(today - timedelta(days=streak)):
-                streak += 1
+    for week in cal:
+        cols = st.columns(7)
+        for i, day in enumerate(week):
+            if day == 0:
+                cols[i].write("")
             else:
-                break
-
-        st.success(f"🔥 Streak: {streak} days")
-
-        for week in cal:
-
-            cols = st.columns(7)
-
-            for i, day in enumerate(week):
-
-                if day == 0:
-                    cols[i].write("")
+                d_str = f"{year}-{month:02d}-{day:02d}"
+                if d_str in log["date"].values:
+                    cols[i].markdown(f"✅ {day}")
                 else:
-                    d_str = f"{year}-{month:02d}-{day:02d}"
+                    cols[i].markdown(f"⬜ {day}")
 
-                    count = 0
-                    if d_str in log["date"].values:
-                        count = int(log.loc[log["date"] == d_str, "count"])
+    st.markdown("### 🔥 Heatmap")
 
-                    if count == 0:
-                        cols[i].markdown(f"⬜ {day}")
-                    elif count < 3:
-                        cols[i].markdown(f"🟩 {day}")
-                    elif count < 6:
-                        cols[i].markdown(f"🟨 {day}")
-                    else:
-                        cols[i].markdown(f"🟥 {day}")
+    for week in cal:
+        cols = st.columns(7)
+        for i, day in enumerate(week):
+            if day == 0:
+                cols[i].write("")
+            else:
+                d_str = f"{year}-{month:02d}-{day:02d}"
+
+                count = 0
+                if d_str in log["date"].values:
+                    count = int(log.loc[log["date"] == d_str]["count"].values[0])
+
+                if count == 0:
+                    cols[i].markdown(f"⬜ {day}")
+                elif count < 3:
+                    cols[i].markdown(f"🟩 {day}")
+                elif count < 6:
+                    cols[i].markdown(f"🟨 {day}")
+                else:
+                    cols[i].markdown(f"🟥 {day}")
