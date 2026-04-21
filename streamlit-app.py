@@ -1,5 +1,5 @@
 # =========================================
-# Spanish Reader v8.3 (STABLE FINAL)
+# Spanish Reader v8.4 (UI + TRACKING UPGRADE)
 # =========================================
 
 import streamlit as st
@@ -15,28 +15,22 @@ import spacy
 WORDS_FILE = "spanish_words_unknown.xlsx"
 LOG_FILE = "study_log.xlsx"
 
-# ======================
-# CONFIG
-# ======================
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 
-# ======================
-# SPACY
-# ======================
 @st.cache_resource
 def load_spacy_model():
     return spacy.load("es_core_news_sm")
 
 nlp = load_spacy_model()
 
-# ======================
-# DATA FIX
-# ======================
 EXPECTED_COLS = [
     "word","translation","lemma","pos","sentence",
     "difficulty","date","ease","interval","repetitions","next_review"
 ]
 
+# ======================
+# DATA FIX
+# ======================
 def fix_columns(df):
     df.columns = [c.lower().strip() for c in df.columns]
 
@@ -46,7 +40,6 @@ def fix_columns(df):
 
     df = df[EXPECTED_COLS]
 
-    # FIX dates
     df["next_review"] = df["next_review"].astype(str).str[:10]
     df["next_review"] = df["next_review"].replace("nan", str(date.today()))
     df["next_review"] = df["next_review"].fillna(str(date.today()))
@@ -58,8 +51,7 @@ def fix_columns(df):
 # ======================
 def load_words():
     if os.path.exists(WORDS_FILE):
-        df = pd.read_excel(WORDS_FILE)
-        return fix_columns(df)
+        return fix_columns(pd.read_excel(WORDS_FILE))
     return pd.DataFrame(columns=EXPECTED_COLS)
 
 def save_words(df):
@@ -74,29 +66,21 @@ def save_log(df):
     df.to_excel(LOG_FILE, index=False)
 
 # ======================
-# TRANSLATE
+# CORE
 # ======================
 def translate(word):
     return GoogleTranslator(source="auto", target="el").translate(word)
 
-# ======================
-# NLP
-# ======================
 def analyze_word(word):
-    doc = nlp(word)
-    t = doc[0]
+    t = nlp(word)[0]
     return t.lemma_, t.pos_
 
 def extract_sentence(text, word):
-    doc = nlp(text)
-    for s in doc.sents:
+    for s in nlp(text).sents:
         if word.lower() in s.text.lower():
             return s.text
     return ""
 
-# ======================
-# ADD WORD
-# ======================
 def add_word(word, translation, text):
 
     df = load_words()
@@ -125,32 +109,22 @@ def add_word(word, translation, text):
     df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
     save_words(df)
 
-    # log
     log = load_log()
     if today in log["date"].astype(str).values:
         log.loc[log["date"] == today, "count"] += 1
     else:
         log = pd.concat([log, pd.DataFrame([{"date": today, "count": 1}])])
-
     save_log(log)
 
     return df
 
-# ======================
-# SRS
-# ======================
 def update_srs(row, correct):
 
     row = row.copy()
 
     if correct:
         row["repetitions"] += 1
-        if row["repetitions"] == 1:
-            row["interval"] = 1
-        elif row["repetitions"] == 2:
-            row["interval"] = 3
-        else:
-            row["interval"] = int(row["interval"] * 2)
+        row["interval"] = max(1, int(row["interval"]) * 2)
     else:
         row["repetitions"] = 0
         row["interval"] = 1
@@ -159,39 +133,24 @@ def update_srs(row, correct):
     return row
 
 # ======================
-# FILE READ
-# ======================
-def read_pdf(f):
-    reader = PyPDF2.PdfReader(f)
-    return " ".join([p.extract_text() or "" for p in reader.pages])
-
-def read_docx(f):
-    doc = Document(f)
-    return "\n".join([p.text for p in doc.paragraphs])
-
-def read_txt(f):
-    return f.read().decode("utf-8")
-
-# ======================
 # UI
 # ======================
-st.title("📖 Spanish Reader v8.3")
+st.title("📖 Spanish Reader")
 
-mode = st.radio("Mode", ["Read","Audio","Flashcards","Calendar"])
+st.markdown("**Mode**")
+mode = st.radio("", ["Read","Audio","Flashcards","Calendar"])
 
 # ======================
-# DATA CONTROL (MAIN UI)
+# DATA MANAGEMENT
 # ======================
-st.subheader("📁 Data Management")
+st.markdown("## 📁 Data Management")
 
-# Upload
 col1, col2 = st.columns(2)
 
 with col1:
     uploaded_excel = st.file_uploader("Upload Words Excel", type=["xlsx"])
     if uploaded_excel:
-        df = pd.read_excel(uploaded_excel)
-        df = fix_columns(df)
+        df = fix_columns(pd.read_excel(uploaded_excel))
         save_words(df)
         st.success("Words loaded!")
 
@@ -201,57 +160,57 @@ with col2:
         pd.read_excel(uploaded_log).to_excel(LOG_FILE, index=False)
         st.success("Log loaded!")
 
-# Download
+# DOWNLOAD PANEL (SAFE EXIT)
+st.markdown("### ⬇️ Save your progress (before exit)")
+
 col3, col4 = st.columns(2)
 
 with col3:
     if os.path.exists(WORDS_FILE):
         with open(WORDS_FILE, "rb") as f:
-            st.download_button("Download Words Excel", f, file_name=WORDS_FILE)
+            st.download_button("Download Words", f, file_name=WORDS_FILE)
 
 with col4:
     if os.path.exists(LOG_FILE):
         with open(LOG_FILE, "rb") as f:
-            st.download_button("Download Log Excel", f, file_name=LOG_FILE)
+            st.download_button("Download Logs", f, file_name=LOG_FILE)
 
 # ======================
 # READ
 # ======================
 if mode == "Read":
 
+    st.markdown("## 📖 Read")
+
     uploaded = st.file_uploader("Upload file", type=["pdf","docx","txt"])
 
     text = ""
     if uploaded:
         if uploaded.name.endswith(".pdf"):
-            text = read_pdf(uploaded)
+            reader = PyPDF2.PdfReader(uploaded)
+            text = " ".join([p.extract_text() or "" for p in reader.pages])
         elif uploaded.name.endswith(".docx"):
-            text = read_docx(uploaded)
-        elif uploaded.name.endswith(".txt"):
-            text = read_txt(uploaded)
+            doc = Document(uploaded)
+            text = "\n".join([p.text for p in doc.paragraphs])
+        else:
+            text = uploaded.read().decode("utf-8")
 
     text = st.text_area("Text", value=text, height=300)
 
-    word = st.text_input("Unknown word")
+    word = st.text_input("Input Unknown Word")
 
     if word:
+        st.markdown(f"**{word}**")
         t = translate(word)
         st.success(t)
         df = add_word(word, t, text)
-
-        pretty = ""
-        for _, r in df.iterrows():
-            pretty += f"{r['word']} → {r['translation']}\n"
-            pretty += f"({r['lemma']} | {r['pos']})\n"
-            pretty += f"{r['sentence']}\n"
-            pretty += "-"*40 + "\n"
-
-        st.text_area("Saved words", pretty, height=250)
 
 # ======================
 # AUDIO
 # ======================
 if mode == "Audio":
+
+    st.markdown("## 🎧 Audio")
 
     audio = st.file_uploader("Upload audio", type=["mp3","wav","m4a"])
 
@@ -260,17 +219,20 @@ if mode == "Audio":
 
     text = st.text_area("Paste transcript", height=300)
 
-    word = st.text_input("Unknown word")
+    word = st.text_input("Input Unknown Word")
 
     if word:
+        st.markdown(f"**{word}**")
         t = translate(word)
         st.success(t)
-        df = add_word(word, t, text)
+        add_word(word, t, text)
 
 # ======================
 # FLASHCARDS
 # ======================
 if mode == "Flashcards":
+
+    st.markdown("## 🧠 Flashcards")
 
     if "i" not in st.session_state:
         st.session_state.i = 0
@@ -283,11 +245,10 @@ if mode == "Flashcards":
         i = st.session_state.i % len(df)
         row = df.iloc[i]
 
-        st.markdown(f"## {row['word']}")
+        st.markdown(f"## **{row['word']}**")
 
         if st.button("Show"):
             st.success(row["translation"])
-            st.write(row["lemma"], "|", row["pos"])
             st.write(row["sentence"])
 
         col1, col2, col3 = st.columns(3)
@@ -321,14 +282,27 @@ if mode == "Flashcards":
 # ======================
 if mode == "Calendar":
 
+    st.markdown("## 📅 Calendar")
+
     log = load_log()
-
     today = date.today()
+
+    # streak
+    streak = 0
+    d = today
+
+    while True:
+        d_str = str(d)
+        if d_str in log["date"].astype(str).values:
+            streak += 1
+            d -= timedelta(days=1)
+        else:
+            break
+
+    st.markdown(f"🔥 Streak: **{streak} days**")
+
     year, month = today.year, today.month
-
     cal = calendar.monthcalendar(year, month)
-
-    st.markdown(f"## {calendar.month_name[month]} {year}")
 
     headers = st.columns(7)
     for i, d in enumerate(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]):
@@ -336,7 +310,6 @@ if mode == "Calendar":
 
     for week in cal:
         cols = st.columns(7)
-
         for i, day in enumerate(week):
 
             if day == 0:
@@ -348,6 +321,14 @@ if mode == "Calendar":
                 if d_str in log["date"].astype(str).values:
                     count = int(log.loc[log["date"] == d_str, "count"].values[0])
 
-                mark = "✅" if count > 0 else "⬜"
+                # heatmap
+                if count == 0:
+                    heat = "⬜"
+                elif count < 3:
+                    heat = "🟩"
+                elif count < 6:
+                    heat = "🟨"
+                else:
+                    heat = "🟥"
 
-                cols[i].markdown(f"{day}<br>{mark}", unsafe_allow_html=True)
+                cols[i].markdown(f"{day}<br>{heat}", unsafe_allow_html=True)
