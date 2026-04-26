@@ -3,6 +3,7 @@
 # =========================================
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from deep_translator import GoogleTranslator
 import PyPDF2
@@ -278,7 +279,7 @@ if mode == "Flashcards":
             st.session_state.i += 1
             st.rerun()
 
-# ======================
+# =====================
 # CALENDAR PRO
 # ======================
 if mode == "Calendar":
@@ -320,26 +321,31 @@ if mode == "Calendar":
         unsafe_allow_html=True
     )
 
-    # build calendar html
     cal = calendar.monthcalendar(year, month)
 
     html = """
     <style>
+    body {
+        font-family: Arial, sans-serif;
+    }
     .calendar-grid {
         display:grid;
         grid-template-columns: repeat(7, 1fr);
         gap:6px;
         text-align:center;
         font-size:14px;
+        padding:10px;
     }
     .day-header {
         font-weight:bold;
         padding:8px 0;
+        background:#ddd;
+        border-radius:8px;
     }
     .day-cell {
         border-radius:10px;
         padding:10px 0;
-        min-height:55px;
+        min-height:60px;
         display:flex;
         flex-direction:column;
         justify-content:center;
@@ -349,13 +355,12 @@ if mode == "Calendar":
     </style>
     """
 
-    # headers
-    headers = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
     html += "<div class='calendar-grid'>"
+
+    headers = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
     for h in headers:
         html += f"<div class='day-header'>{h}</div>"
 
-    # cells
     for week in cal:
         for day in week:
             if day == 0:
@@ -365,7 +370,7 @@ if mode == "Calendar":
 
                 count = 0
                 if d_str in log["date"].astype(str).values:
-                    count = int(log.loc[log['date'] == d_str, "count"].values[0])
+                    count = int(log.loc[log["date"].astype(str) == d_str, "count"].values[0])
 
                 if count == 0:
                     color = "#f0f0f0"
@@ -385,7 +390,7 @@ if mode == "Calendar":
 
     html += "</div>"
 
-    st.markdown(html, unsafe_allow_html=True)
+    components.html(html, height=700, scrolling=True)
 
     st.markdown("---")
     st.caption("Color = activity level | Number = words added that day")
