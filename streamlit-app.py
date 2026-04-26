@@ -230,55 +230,95 @@ if mode == "Audio":
         st.rerun()
 
 # ======================
-# FLASHCARDS
+# FLASHCARDS PRO
 # ======================
 if mode == "Flashcards":
     st.markdown("## 🧠 Flashcards")
 
     df = load_words()
 
-    if "i" not in st.session_state or st.session_state.i >= len(df):
-        st.session_state.i = 0
-
     if len(df) == 0:
         st.warning("No words loaded")
+
     else:
-        i = st.session_state.i
-        row = df.iloc[i]
+        today_str = str(date.today())
 
-        st.markdown(f"## **{row['word']}**")
+        # study mode selector
+        study_mode = st.radio(
+            "Study Mode",
+            ["Serial", "Random", "Due Today", "Hard", "Smart Mix"],
+            horizontal=True
+        )
 
-        if st.button("Show"):
-            st.success(row["translation"])
-            st.write(row["lemma"], "|", row["pos"])
-            st.write(row["sentence"])
+        # filtering
+        if study_mode == "Due Today":
+            df_filtered = df[df["next_review"].astype(str) <= today_str]
 
-        col1, col2, col3 = st.columns(3)
+        elif study_mode == "Hard":
+            df_filtered = df[df["difficulty"].astype(str).str.lower() == "hard"]
 
-        if col1.button("Correct"):
-            updated = update_srs(row, True)
-            full = load_words()
-            idx = full.index[full["word"] == row["word"]][0]
-            for k in updated.index:
-                full.at[idx, k] = updated[k]
-            save_words(full)
-            st.session_state.i += 1
-            st.rerun()
+        elif study_mode == "Random":
+            df_filtered = df.sample(frac=1).reset_index(drop=True)
 
-        if col2.button("Wrong"):
-            updated = update_srs(row, False)
-            full = load_words()
-            idx = full.index[full["word"] == row["word"]][0]
-            for k in updated.index:
-                full.at[idx, k] = updated[k]
-            save_words(full)
-            st.session_state.i += 1
-            st.rerun()
+        elif study_mode == "Smart Mix":
+            due = df[df["next_review"].astype(str) <= today_str]
+            hard = df[df["difficulty"].astype(str).str.lower() == "hard"]
+            rand = df.sample(min(5, len(df)))
 
-        if col3.button("Next"):
-            st.session_state.i += 1
-            st.rerun()
+            df_filtered = pd.concat([due, hard, rand]).drop_duplicates().reset_index(drop=True)
 
+            if len(df_filtered) > 0:
+                df_filtered = df_filtered.sample(frac=1).reset_index(drop=True)
+
+        else:
+            df_filtered = df.reset_index(drop=True)
+
+        if len(df_filtered) == 0:
+            st.warning("No cards in this mode.")
+        else:
+            # safe index
+            if "i" not in st.session_state or st.session_state.i >= len(df_filtered):
+                st.session_state.i = 0
+
+            i = st.session_state.i
+            row = df_filtered.iloc[i]
+
+            # progress
+            st.caption(f"Card {i+1} / {len(df_filtered)}")
+
+            st.markdown(f"## **{row['word']}**")
+
+            if st.button("Show"):
+                st.success(row["translation"])
+                st.write(f"Lemma: {row['lemma']}")
+                st.write(f"POS: {row['pos']}")
+                st.write(row["sentence"])
+
+            col1, col2, col3 = st.columns(3)
+
+            if col1.button("✅ Correct"):
+                updated = update_srs(row, True)
+                full = load_words()
+                idx = full.index[full["word"] == row["word"]][0]
+                for k in updated.index:
+                    full.at[idx, k] = updated[k]
+                save_words(full)
+                st.session_state.i += 1
+                st.rerun()
+
+            if col2.button("❌ Wrong"):
+                updated = update_srs(row, False)
+                full = load_words()
+                idx = full.index[full["word"] == row["word"]][0]
+                for k in updated.index:
+                    full.at[idx, k] = updated[k]
+                save_words(full)
+                st.session_state.i += 1
+                st.rerun()
+
+            if col3.button("➡ Next"):
+                st.session_state.i += 1
+                st.rerun()
 # =====================
 # CALENDAR PRO
 # ======================
