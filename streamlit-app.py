@@ -279,10 +279,10 @@ if mode == "Flashcards":
             st.rerun()
 
 # ======================
-# CALENDAR
+# CALENDAR PRO
 # ======================
 if mode == "Calendar":
-    st.markdown("## 📅 Calendar")
+    st.markdown("## 📅 Pro Calendar")
 
     log = load_log()
     today = date.today()
@@ -298,34 +298,94 @@ if mode == "Calendar":
         else:
             break
 
-    st.markdown(f"🔥 Streak: **{streak} days**")
-
+    # monthly stats
     year, month = today.year, today.month
+    month_prefix = f"{year}-{month:02d}"
+
+    monthly_log = log[log["date"].astype(str).str.startswith(month_prefix)]
+
+    days_studied = len(monthly_log)
+    words_added = monthly_log["count"].sum() if len(monthly_log) > 0 else 0
+
+    # top stats
+    c1, c2, c3 = st.columns(3)
+    c1.metric("🔥 Streak", f"{streak} days")
+    c2.metric("📚 Days studied", days_studied)
+    c3.metric("📖 Words added", int(words_added))
+
+    st.markdown("---")
+
+    st.markdown(
+        f"<h3 style='text-align:center;'>{calendar.month_name[month]} {year}</h3>",
+        unsafe_allow_html=True
+    )
+
+    # build calendar html
     cal = calendar.monthcalendar(year, month)
 
-    headers = st.columns(7)
-    for i, d in enumerate(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]):
-        headers[i].markdown(f"**{d}**")
+    html = """
+    <style>
+    .calendar-grid {
+        display:grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap:6px;
+        text-align:center;
+        font-size:14px;
+    }
+    .day-header {
+        font-weight:bold;
+        padding:8px 0;
+    }
+    .day-cell {
+        border-radius:10px;
+        padding:10px 0;
+        min-height:55px;
+        display:flex;
+        flex-direction:column;
+        justify-content:center;
+        align-items:center;
+        font-weight:bold;
+    }
+    </style>
+    """
 
+    # headers
+    headers = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+    html += "<div class='calendar-grid'>"
+    for h in headers:
+        html += f"<div class='day-header'>{h}</div>"
+
+    # cells
     for week in cal:
-        cols = st.columns(7)
-        for i, day in enumerate(week):
+        for day in week:
             if day == 0:
-                cols[i].write("")
+                html += "<div></div>"
             else:
                 d_str = f"{year}-{month:02d}-{day:02d}"
 
                 count = 0
                 if d_str in log["date"].astype(str).values:
-                    count = int(log.loc[log["date"] == d_str, "count"].values[0])
+                    count = int(log.loc[log['date'] == d_str, "count"].values[0])
 
                 if count == 0:
-                    heat = "⬜"
+                    color = "#f0f0f0"
                 elif count < 3:
-                    heat = "🟩"
+                    color = "#8BC34A"
                 elif count < 6:
-                    heat = "🟨"
+                    color = "#FFC107"
                 else:
-                    heat = "🟥"
+                    color = "#F44336"
 
-                cols[i].markdown(f"{day}<br>{heat}", unsafe_allow_html=True)
+                html += f"""
+                <div class='day-cell' style='background:{color};'>
+                    <div>{day}</div>
+                    <div style='font-size:12px;'>{count}</div>
+                </div>
+                """
+
+    html += "</div>"
+
+    st.markdown(html, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.caption("Color = activity level | Number = words added that day")
