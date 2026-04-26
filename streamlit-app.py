@@ -1,5 +1,5 @@
 # =========================================
-# Spanish Reader v8.4 (UI + TRACKING UPGRADE)
+# Spanish Reader v8.5 STABLE
 # =========================================
 
 import streamlit as st
@@ -17,6 +17,9 @@ LOG_FILE = "study_log.xlsx"
 
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 
+# ======================
+# LOAD SPACY
+# ======================
 @st.cache_resource
 def load_spacy_model():
     return spacy.load("es_core_news_sm")
@@ -29,7 +32,7 @@ EXPECTED_COLS = [
 ]
 
 # ======================
-# DATA FIX
+# HELPERS
 # ======================
 def fix_columns(df):
     df.columns = [c.lower().strip() for c in df.columns]
@@ -46,9 +49,6 @@ def fix_columns(df):
 
     return df
 
-# ======================
-# LOAD / SAVE
-# ======================
 def load_words():
     if os.path.exists(WORDS_FILE):
         return fix_columns(pd.read_excel(WORDS_FILE))
@@ -65,9 +65,6 @@ def load_log():
 def save_log(df):
     df.to_excel(LOG_FILE, index=False)
 
-# ======================
-# CORE
-# ======================
 def translate(word):
     return GoogleTranslator(source="auto", target="el").translate(word)
 
@@ -82,7 +79,6 @@ def extract_sentence(text, word):
     return ""
 
 def add_word(word, translation, text):
-
     df = load_words()
 
     if word in df["word"].values:
@@ -113,13 +109,13 @@ def add_word(word, translation, text):
     if today in log["date"].astype(str).values:
         log.loc[log["date"] == today, "count"] += 1
     else:
-        log = pd.concat([log, pd.DataFrame([{"date": today, "count": 1}])])
+        log = pd.concat([log, pd.DataFrame([{"date": today, "count": 1}])], ignore_index=True)
+
     save_log(log)
 
     return df
 
 def update_srs(row, correct):
-
     row = row.copy()
 
     if correct:
@@ -160,26 +156,28 @@ with col2:
         pd.read_excel(uploaded_log).to_excel(LOG_FILE, index=False)
         st.success("Log loaded!")
 
-# DOWNLOAD PANEL (SAFE EXIT)
-st.markdown("### ⬇️ Save your progress (before exit)")
+# ======================
+# SAVE SESSION
+# ======================
+st.markdown("## 💾 Save Session")
+st.warning("Before leaving, download your progress.")
 
 col3, col4 = st.columns(2)
 
 with col3:
     if os.path.exists(WORDS_FILE):
         with open(WORDS_FILE, "rb") as f:
-            st.download_button("Download Words", f, file_name=WORDS_FILE)
+            st.download_button("⬇️ Download Words", f, file_name=WORDS_FILE)
 
 with col4:
     if os.path.exists(LOG_FILE):
         with open(LOG_FILE, "rb") as f:
-            st.download_button("Download Logs", f, file_name=LOG_FILE)
+            st.download_button("⬇️ Download Logs", f, file_name=LOG_FILE)
 
 # ======================
 # READ
 # ======================
 if mode == "Read":
-
     st.markdown("## 📖 Read")
 
     uploaded = st.file_uploader("Upload file", type=["pdf","docx","txt"])
@@ -203,13 +201,14 @@ if mode == "Read":
         st.markdown(f"**{word}**")
         t = translate(word)
         st.success(t)
-        df = add_word(word, t, text)
+        add_word(word, t, text)
+        st.success("Word saved!")
+        st.rerun()
 
 # ======================
 # AUDIO
 # ======================
 if mode == "Audio":
-
     st.markdown("## 🎧 Audio")
 
     audio = st.file_uploader("Upload audio", type=["mp3","wav","m4a"])
@@ -226,29 +225,31 @@ if mode == "Audio":
         t = translate(word)
         st.success(t)
         add_word(word, t, text)
+        st.success("Word saved!")
+        st.rerun()
 
 # ======================
 # FLASHCARDS
 # ======================
 if mode == "Flashcards":
-
     st.markdown("## 🧠 Flashcards")
 
-    if "i" not in st.session_state:
-        st.session_state.i = 0
-
     df = load_words()
+
+    if "i" not in st.session_state or st.session_state.i >= len(df):
+        st.session_state.i = 0
 
     if len(df) == 0:
         st.warning("No words loaded")
     else:
-        i = st.session_state.i % len(df)
+        i = st.session_state.i
         row = df.iloc[i]
 
         st.markdown(f"## **{row['word']}**")
 
         if st.button("Show"):
             st.success(row["translation"])
+            st.write(row["lemma"], "|", row["pos"])
             st.write(row["sentence"])
 
         col1, col2, col3 = st.columns(3)
@@ -281,7 +282,6 @@ if mode == "Flashcards":
 # CALENDAR
 # ======================
 if mode == "Calendar":
-
     st.markdown("## 📅 Calendar")
 
     log = load_log()
@@ -290,7 +290,6 @@ if mode == "Calendar":
     # streak
     streak = 0
     d = today
-
     while True:
         d_str = str(d)
         if d_str in log["date"].astype(str).values:
@@ -311,7 +310,6 @@ if mode == "Calendar":
     for week in cal:
         cols = st.columns(7)
         for i, day in enumerate(week):
-
             if day == 0:
                 cols[i].write("")
             else:
@@ -321,7 +319,6 @@ if mode == "Calendar":
                 if d_str in log["date"].astype(str).values:
                     count = int(log.loc[log["date"] == d_str, "count"].values[0])
 
-                # heatmap
                 if count == 0:
                     heat = "⬜"
                 elif count < 3:
