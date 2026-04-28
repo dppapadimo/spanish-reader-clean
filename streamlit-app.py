@@ -1,9 +1,8 @@
 # =========================================
-# Spanish Reader v8.5 STABLE
+# Spanish Reader v9.0
 # =========================================
 
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 from deep_translator import GoogleTranslator
 import PyPDF2
@@ -12,6 +11,7 @@ from datetime import date, timedelta
 import calendar
 import os
 import spacy
+import streamlit.components.v1 as components
 
 WORDS_FILE = "spanish_words_unknown.xlsx"
 LOG_FILE = "study_log.xlsx"
@@ -116,26 +116,13 @@ def add_word(word, translation, text):
 
     return df
 
-def update_srs(row, correct):
-    row = row.copy()
-
-    if correct:
-        row["repetitions"] += 1
-        row["interval"] = max(1, int(row["interval"]) * 2)
-    else:
-        row["repetitions"] = 0
-        row["interval"] = 1
-
-    row["next_review"] = str(date.today() + timedelta(days=int(row["interval"])))
-    return row
-
 # ======================
 # UI
 # ======================
 st.title("📖 Spanish Reader")
 
 st.markdown("**Mode**")
-mode = st.radio("", ["Read","Audio","Flashcards","Calendar"])
+mode = st.radio("", ["Dashboard","Read","Audio","Flashcards","Calendar"])
 
 # ======================
 # DATA MANAGEMENT
@@ -161,7 +148,6 @@ with col2:
 # SAVE SESSION
 # ======================
 st.markdown("## 💾 Save Session")
-st.warning("Before leaving, download your progress.")
 
 col3, col4 = st.columns(2)
 
@@ -176,6 +162,38 @@ with col4:
             st.download_button("⬇️ Download Logs", f, file_name=LOG_FILE)
 
 # ======================
+# DASHBOARD
+# ======================
+if mode == "Dashboard":
+    st.markdown("## 📊 Dashboard")
+
+    df = load_words()
+    log = load_log()
+    today_str = str(date.today())
+
+    total_words = len(df)
+    due_today = len(df[df["next_review"].astype(str) <= today_str])
+    hard_words = len(df[df["difficulty"].astype(str).str.lower() == "hard"])
+
+    streak = 0
+    d = date.today()
+    while True:
+        if str(d) in log["date"].astype(str).values:
+            streak += 1
+            d -= timedelta(days=1)
+        else:
+            break
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("📖 Total Words", total_words)
+    c2.metric("⏰ Due Today", due_today)
+    c3.metric("🔥 Hard Words", hard_words)
+    c4.metric("🏆 Streak", streak)
+
+    st.markdown("---")
+    st.info("Use Read / Audio to add words, Flashcards to review.")
+
+# ======================
 # READ
 # ======================
 if mode == "Read":
@@ -188,10 +206,12 @@ if mode == "Read":
         if uploaded.name.endswith(".pdf"):
             reader = PyPDF2.PdfReader(uploaded)
             text = " ".join([p.extract_text() or "" for p in reader.pages])
+
         elif uploaded.name.endswith(".docx"):
             doc = Document(uploaded)
             text = "\n".join([p.text for p in doc.paragraphs])
-        else:
+
+        elif uploaded.name.endswith(".txt"):
             text = uploaded.read().decode("utf-8")
 
     text = st.text_area("Text", value=text, height=300)
@@ -199,12 +219,23 @@ if mode == "Read":
     word = st.text_input("Input Unknown Word")
 
     if word:
-        st.markdown(f"**{word}**")
+        st.markdown(f"### **{word}**")
+
         t = translate(word)
         st.success(t)
-        add_word(word, t, text)
-        st.success("Word saved!")
-        st.rerun()
+
+        c1, c2 = st.columns(2)
+
+        with c1:
+            if st.button("💾 Save Word"):
+                add_word(word, t, text)
+                st.success("Word saved!")
+                st.rerun()
+
+        with c2:
+            if st.button("💡 Explain"):
+                lemma, pos = analyze_word(word)
+                st.info(f"Lemma: {lemma} | POS: {pos}")
 
 # ======================
 # AUDIO
@@ -219,18 +250,29 @@ if mode == "Audio":
 
     text = st.text_area("Paste transcript", height=300)
 
-    word = st.text_input("Input Unknown Word")
+    word = st.text_input("Input Unknown Word ")
 
     if word:
-        st.markdown(f"**{word}**")
+        st.markdown(f"### **{word}**")
+
         t = translate(word)
         st.success(t)
-        add_word(word, t, text)
-        st.success("Word saved!")
-        st.rerun()
+
+        c1, c2 = st.columns(2)
+
+        with c1:
+            if st.button("💾 Save Word "):
+                add_word(word, t, text)
+                st.success("Word saved!")
+                st.rerun()
+
+        with c2:
+            if st.button("💡 Explain "):
+                lemma, pos = analyze_word(word)
+                st.info(f"Lemma: {lemma} | POS: {pos}")
 
 # ======================
-# FLASHCARDS PRO v8.8 ANKI STYLE
+# FLASHCARDS PRO v8.8
 # ======================
 if mode == "Flashcards":
     st.markdown("## 🧠 Flashcards PRO")
@@ -243,9 +285,6 @@ if mode == "Flashcards":
     else:
         today_str = str(date.today())
 
-        # ----------------------
-        # STUDY MODE
-        # ----------------------
         study_mode = st.radio(
             "Study Mode",
             ["Serial", "Random", "Due Today", "Hard", "Smart Mix"],
@@ -283,16 +322,10 @@ if mode == "Flashcards":
             i = st.session_state.i
             row = df_filtered.iloc[i]
 
-            # ----------------------
-            # PROGRESS
-            # ----------------------
             st.caption(f"Card {i+1} / {len(df_filtered)}")
             progress = (i + 1) / len(df_filtered)
             st.progress(progress)
 
-            # ----------------------
-            # WORD CARD UI
-            # ----------------------
             st.markdown(f"""
             <div style="
             padding:20px;
@@ -307,7 +340,6 @@ if mode == "Flashcards":
             </div>
             """, unsafe_allow_html=True)
 
-            # difficulty badge
             difficulty = str(row["difficulty"]).lower()
             if difficulty == "hard":
                 badge = "🔴 Hard"
@@ -318,18 +350,12 @@ if mode == "Flashcards":
 
             st.markdown(f"**Difficulty:** {badge}")
 
-            # ----------------------
-            # SHOW ANSWER
-            # ----------------------
             if st.button("👀 Show Answer"):
                 st.success(row["translation"])
                 st.write(f"**Lemma:** {row['lemma']}")
                 st.write(f"**POS:** {row['pos']}")
                 st.info(row["sentence"])
 
-            # ----------------------
-            # BUTTONS
-            # ----------------------
             col1, col2, col3, col4, col5 = st.columns(5)
 
             def save_updated(updated):
@@ -339,7 +365,6 @@ if mode == "Flashcards":
                     full.at[idx, k] = updated[k]
                 save_words(full)
 
-            # AGAIN
             if col1.button("❌ Again"):
                 updated = row.copy()
                 updated["interval"] = 1
@@ -351,7 +376,6 @@ if mode == "Flashcards":
                 st.session_state.i += 1
                 st.rerun()
 
-            # HARD
             if col2.button("😬 Hard"):
                 updated = row.copy()
                 updated["interval"] = max(1, int(float(row["interval"])) + 1)
@@ -363,7 +387,6 @@ if mode == "Flashcards":
                 st.session_state.i += 1
                 st.rerun()
 
-            # GOOD
             if col3.button("🙂 Good"):
                 updated = row.copy()
                 updated["interval"] = max(1, int(float(row["interval"]) * float(row["ease"])))
@@ -374,7 +397,6 @@ if mode == "Flashcards":
                 st.session_state.i += 1
                 st.rerun()
 
-            # EASY
             if col4.button("😎 Easy"):
                 updated = row.copy()
                 updated["ease"] = float(row["ease"]) + 0.15
@@ -386,7 +408,6 @@ if mode == "Flashcards":
                 st.session_state.i += 1
                 st.rerun()
 
-            # HARD TOGGLE
             if col5.button("🔥 Toggle"):
                 full = load_words()
                 idx = full.index[full["word"] == row["word"]][0]
@@ -399,7 +420,8 @@ if mode == "Flashcards":
                     st.toast("Marked Hard")
                 save_words(full)
                 st.rerun()
-# =====================
+
+# ======================
 # CALENDAR PRO
 # ======================
 if mode == "Calendar":
@@ -514,3 +536,4 @@ if mode == "Calendar":
 
     st.markdown("---")
     st.caption("Color = activity level | Number = words added that day")
+
