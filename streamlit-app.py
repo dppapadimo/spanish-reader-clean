@@ -280,7 +280,7 @@ if mode == "Audio":
         c1, c2 = st.columns(2)
 
         with c1:
-            if st.button("💾 Save Word ", key="save_audio")
+            if st.button("💾 Save Word ", key="save_audio"):
                 add_word(word, t, text)
                 total = len(load_words())
                 st.success(f"Word saved! Total words: {total}")
