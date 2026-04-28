@@ -137,12 +137,17 @@ with col1:
         df = fix_columns(pd.read_excel(uploaded_excel))
         save_words(df)
         st.success("Words loaded!")
+        # 🔥 ADD THIS
+        st.info(f"Words in system: {len(load_words())}")
+    
 
 with col2:
     uploaded_log = st.file_uploader("Upload Log Excel", type=["xlsx"])
     if uploaded_log:
         pd.read_excel(uploaded_log).to_excel(LOG_FILE, index=False)
         st.success("Log loaded!")
+        # 🔥 ADD THIS
+        st.info(f"Logs in system: {len(load_log())}")
 
 # ======================
 # SAVE SESSION
@@ -150,13 +155,21 @@ with col2:
 st.markdown("## 💾 Save Session")
 
 col3, col4 = st.columns(2)
+df = load_words()
+# st.info(f"Words ready to download: {len(df)} 
 
 with col3:
+    df = load_words()
+    st.info(f"Words ready to download: {len(df)}
+    
     if os.path.exists(WORDS_FILE):
         with open(WORDS_FILE, "rb") as f:
             st.download_button("⬇️ Download Words", f, file_name=WORDS_FILE)
 
 with col4:
+    log = load_log()
+    st.info(f"Logs ready to download: {len(log)} rows")
+
     if os.path.exists(LOG_FILE):
         with open(LOG_FILE, "rb") as f:
             st.download_button("⬇️ Download Logs", f, file_name=LOG_FILE)
@@ -218,6 +231,8 @@ if mode == "Read":
 
     word = st.text_input("Input Unknown Word")
 
+    st.info(f"Saved Words Total: {len(load_words())}")
+
     if word.strip():
         clean_word = word.strip()
         st.markdown(f"### **{clean_word}**")
@@ -229,8 +244,10 @@ if mode == "Read":
 
         with c1:
             if st.button("💾 Save Word", key= "save.read"):
+                
                 add_word(clean_word, t, text)
-                st.success(f"{clean_word} saved!")
+                total = len(load_words())
+                st.success(f"Word saved! Total words: {total}")
                 
 
         with c2:
@@ -253,16 +270,19 @@ if mode == "Audio":
 
     word = st.text_input("Input Unknown Word ")
 
+    st.info(f"Saved Words Total: {len(load_words())}")
+
     if word:
         st.markdown(f"### **{word}**")
 
         t = translate(word)
         st.success(t)
-
         c1, c2 = st.columns(2)
 
         with c1:
-            if st.button("💾 Save Word ", key="save_audio"):
+            if st.button("💾 Save Word ", key="save_audio")
+                total = len(load_words())
+                st.success(f"Word saved! Total words: {total}")
                 add_word(word, t, text)
                 st.success("Word saved!")
                 st.rerun()
