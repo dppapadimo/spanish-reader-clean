@@ -281,9 +281,10 @@ if mode == "Audio":
 
         with c1:
             if st.button("💾 Save Word ", key="save_audio")
+                add_word(word, t, text)
                 total = len(load_words())
                 st.success(f"Word saved! Total words: {total}")
-                add_word(word, t, text)
+                
                 st.success("Word saved!")
                 st.rerun()
 
