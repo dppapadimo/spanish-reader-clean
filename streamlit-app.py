@@ -218,19 +218,20 @@ if mode == "Read":
 
     word = st.text_input("Input Unknown Word")
 
-    if word:
-        st.markdown(f"### **{word}**")
-
-        t = translate(word)
+    if word.strip():
+        clean_word = word.strip()
+        st.markdown(f"### **{clean_word}**")
+        
+        t = translate(clean_word)
         st.success(t)
 
         c1, c2 = st.columns(2)
 
         with c1:
-            if st.button("💾 Save Word"):
-                add_word(word, t, text)
-                st.success("Word saved!")
-                st.rerun()
+            if st.button("💾 Save Word", key= "save.read"):
+                add_word(clean_word, t, text)
+                st.success(f"{clean_word} saved!")
+                
 
         with c2:
             if st.button("💡 Explain"):
@@ -261,7 +262,7 @@ if mode == "Audio":
         c1, c2 = st.columns(2)
 
         with c1:
-            if st.button("💾 Save Word "):
+            if st.button("💾 Save Word ", key="save_audio"):
                 add_word(word, t, text)
                 st.success("Word saved!")
                 st.rerun()
