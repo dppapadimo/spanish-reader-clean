@@ -160,7 +160,7 @@ df = load_words()
 
 with col3:
     df = load_words()
-    st.info(f"Words ready to download: {len(df)}
+    st.info(f"Words ready to download: {len(df)} recirds")
     
     if os.path.exists(WORDS_FILE):
         with open(WORDS_FILE, "rb") as f:
