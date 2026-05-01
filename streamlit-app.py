@@ -190,56 +190,65 @@ if mode == "Audio":
             st.success(f"Saved: {clean_word}")
             st.info(f"Before: {before} → After: {after}")
 
+
 # ======================
-# FLASHCARDS (FIXED - LIVE DATA)
+# FLASHCARDS (LIVE SYNC FIX)
 # ======================
 if mode == "Flashcards":
     st.markdown("## 🧠 Flashcards")
 
     df = st.session_state.words_df
-
     total = len(df)
+
+    # 🔥 trigger refresh όταν αλλάζει το dataset
+    if "fc_len" not in st.session_state:
+        st.session_state.fc_len = total
+
+    if total != st.session_state.fc_len:
+        st.session_state.fc_index = 0
+        st.session_state.show_answer = False
+        st.session_state.fc_len = total
+        st.rerun()
+
     st.info(f"Words in flashcards: {total}")
 
     if total == 0:
         st.warning("No words available")
     else:
-        # 🔥 init index safely
         if "fc_index" not in st.session_state:
             st.session_state.fc_index = 0
 
-        # 🔥 keep index in bounds (VERY IMPORTANT)
+        if "show_answer" not in st.session_state:
+            st.session_state.show_answer = False
+
+        # safety
         if st.session_state.fc_index >= total:
             st.session_state.fc_index = 0
 
         row = df.iloc[st.session_state.fc_index]
 
-        # WORD
         st.markdown(f"### 🟦 {row['word']}")
 
-        # STATE: show / hide answer
-        if "show_answer" not in st.session_state:
-            st.session_state.show_answer = False
-
-        # SHOW BUTTON
         if st.button("👁 Show Answer", key="show_btn"):
             st.session_state.show_answer = True
 
         if st.session_state.show_answer:
             st.success(row["translation"])
 
-        # NAVIGATION
         col1, col2 = st.columns(2)
 
         with col1:
             if st.button("➡️ Next", key="next_btn"):
                 st.session_state.fc_index = (st.session_state.fc_index + 1) % total
                 st.session_state.show_answer = False
+                st.rerun()
 
         with col2:
             if st.button("🔄 Reset", key="reset_btn"):
                 st.session_state.fc_index = 0
                 st.session_state.show_answer = False
+                st.rerun()
+
 
 # ======================
 # CALENDAR
