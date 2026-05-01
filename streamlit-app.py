@@ -158,28 +158,37 @@ if mode == "Read":
             st.success(f"Saved: {word}")
             st.info(f"Before: {before} → After: {after}")
 
+
 # ======================
-# AUDIO
+# AUDIO (FIXED - SESSION SAFE)
 # ======================
 if mode == "Audio":
     st.markdown("## 🎧 Audio")
 
+    # 🔥 total words (shared with Read)
     st.info(f"Saved Words Total: {len(st.session_state.words_df)}")
 
+    # transcript input
     text = st.text_area("Paste transcript", height=300)
-    word = st.text_input("Input Unknown Word ")
+
+    # 🔥 unique widget key (important)
+    word = st.text_input("Input Unknown Word", key="audio_word")
 
     if word:
-        st.markdown(f"### **{word}**")
+        clean_word = word.strip()
 
-        t = translate(word)
+        st.markdown(f"### **{clean_word}**")
+
+        t = translate(clean_word)
         st.success(t)
 
-        if st.button("💾 Save Word "):
-            before, after = add_word(word, t, text)
-            st.success(f"Saved: {word}")
-            st.info(f"Before: {before} → After: {after}")
+        # 🔥 unique button key
+        if st.button("💾 Save Word", key="audio_save"):
 
+            before, after = add_word(clean_word, t, text)
+
+            st.success(f"Saved: {clean_word}")
+            st.info(f"Before: {before} → After: {after}")
 # ======================
 # FLASHCARDS
 # ======================
