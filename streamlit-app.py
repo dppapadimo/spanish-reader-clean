@@ -1,170 +1,195 @@
+# =========================================
+# Spanish Reader v8.4.1 (Stable + Counters)
+# =========================================
+
+import streamlit as st
+import pandas as pd
+from deep_translator import GoogleTranslator
+from datetime import date, timedelta
+import os
+
+WORDS_FILE = "spanish_words_unknown.xlsx"
+LOG_FILE = "study_log.xlsx"
+
+EXPECTED_COLS = [
+    "word","translation","lemma","pos","sentence",
+    "difficulty","date","ease","interval","repetitions","next_review"
+]
+
 # ======================
-# FLASHCARDS PRO v8.8 ANKI STYLE
+# HELPERS
+# ======================
+def fix_columns(df):
+    df.columns = [c.lower().strip() for c in df.columns]
+    for col in EXPECTED_COLS:
+        if col not in df.columns:
+            df[col] = ""
+    return df[EXPECTED_COLS]
+
+def load_words():
+    if os.path.exists(WORDS_FILE):
+        return fix_columns(pd.read_excel(WORDS_FILE))
+    return pd.DataFrame(columns=EXPECTED_COLS)
+
+def save_words(df):
+    df.to_excel(WORDS_FILE, index=False)
+
+def load_log():
+    if os.path.exists(LOG_FILE):
+        return pd.read_excel(LOG_FILE)
+    return pd.DataFrame(columns=["date","count"])
+
+def save_log(df):
+    df.to_excel(LOG_FILE, index=False)
+
+def translate(word):
+    return GoogleTranslator(source="auto", target="el").translate(word)
+
+def add_word(word, translation, text):
+    df = load_words()
+
+    if word in df["word"].values:
+        return df
+
+    today = str(date.today())
+
+    new = {
+        "word": word,
+        "translation": translation,
+        "lemma": "",
+        "pos": "",
+        "sentence": text[:120],
+        "difficulty": "medium",
+        "date": today,
+        "ease": 2.5,
+        "interval": 1,
+        "repetitions": 0,
+        "next_review": today
+    }
+
+    df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
+    save_words(df)
+
+    log = load_log()
+    if today in log["date"].astype(str).values:
+        log.loc[log["date"] == today, "count"] += 1
+    else:
+        log = pd.concat([log, pd.DataFrame([{"date": today, "count": 1}])], ignore_index=True)
+    save_log(log)
+
+    return df
+
+# ======================
+# UI
+# ======================
+st.title("📖 Spanish Reader")
+
+mode = st.radio("Mode", ["Read","Audio","Flashcards","Calendar"])
+
+# ======================
+# DATA MANAGEMENT
+# ======================
+st.markdown("## 📁 Data Management")
+
+uploaded_excel = st.file_uploader("Upload Words Excel", type=["xlsx"])
+if uploaded_excel:
+    df = fix_columns(pd.read_excel(uploaded_excel))
+    save_words(df)
+    st.success("Words loaded!")
+    st.info(f"Words in system: {len(load_words())}")
+
+uploaded_log = st.file_uploader("Upload Log Excel", type=["xlsx"])
+if uploaded_log:
+    pd.read_excel(uploaded_log).to_excel(LOG_FILE, index=False)
+    st.success("Log loaded!")
+    st.info(f"Logs in system: {len(load_log())}")
+
+# ======================
+# SAVE SESSION
+# ======================
+st.markdown("## 💾 Save Session")
+
+st.info(f"Words ready: {len(load_words())}")
+st.info(f"Logs ready: {len(load_log())}")
+
+if os.path.exists(WORDS_FILE):
+    with open(WORDS_FILE, "rb") as f:
+        st.download_button("⬇️ Download Words", f, file_name=WORDS_FILE)
+
+if os.path.exists(LOG_FILE):
+    with open(LOG_FILE, "rb") as f:
+        st.download_button("⬇️ Download Logs", f, file_name=LOG_FILE)
+
+# ======================
+# READ
+# ======================
+if mode == "Read":
+    st.markdown("## 📖 Read")
+
+    st.info(f"Saved Words Total: {len(load_words())}")
+
+    text = st.text_area("Text", height=300)
+    word = st.text_input("Input Unknown Word")
+
+    if word:
+        st.markdown(f"### **{word}**")
+        t = translate(word)
+        st.success(t)
+
+        if st.button("💾 Save Word"):
+            add_word(word, t, text)
+            st.success(f"Word saved! Total: {len(load_words())}")
+
+# ======================
+# AUDIO
+# ======================
+if mode == "Audio":
+    st.markdown("## 🎧 Audio")
+
+    st.info(f"Saved Words Total: {len(load_words())}")
+
+    text = st.text_area("Paste transcript", height=300)
+    word = st.text_input("Input Unknown Word ")
+
+    if word:
+        st.markdown(f"### **{word}**")
+        t = translate(word)
+        st.success(t)
+
+        if st.button("💾 Save Word "):
+            add_word(word, t, text)
+            st.success(f"Word saved! Total: {len(load_words())}")
+
+# ======================
+# FLASHCARDS (simple stable)
 # ======================
 if mode == "Flashcards":
-    st.markdown("## 🧠 Flashcards PRO")
+    st.markdown("## 🧠 Flashcards")
 
     df = load_words()
 
     if len(df) == 0:
-        st.warning("No words loaded")
-
+        st.warning("No words available")
     else:
-        today_str = str(date.today())
+        if "i" not in st.session_state:
+            st.session_state.i = 0
 
-        # ----------------------
-        # STUDY MODE
-        # ----------------------
-        study_mode = st.radio(
-            "Study Mode",
-            ["Serial", "Random", "Due Today", "Hard", "Smart Mix"],
-            horizontal=True
-        )
+        row = df.iloc[st.session_state.i]
 
-        df_filtered = df.copy()
+        st.subheader(row["word"])
 
-        if study_mode == "Due Today":
-            df_filtered = df[df["next_review"].astype(str) <= today_str]
+        if st.button("Show"):
+            st.success(row["translation"])
 
-        elif study_mode == "Hard":
-            df_filtered = df[df["difficulty"].astype(str).str.lower() == "hard"]
+        if st.button("Next"):
+            st.session_state.i = (st.session_state.i + 1) % len(df)
 
-        elif study_mode == "Random":
-            df_filtered = df.sample(frac=1).reset_index(drop=True)
+# ======================
+# CALENDAR (basic stable)
+# ======================
+if mode == "Calendar":
+    st.markdown("## 📅 Calendar")
 
-        elif study_mode == "Smart Mix":
-            due = df[df["next_review"].astype(str) <= today_str]
-            hard = df[df["difficulty"].astype(str).str.lower() == "hard"]
-            rand = df.sample(min(5, len(df)))
-            df_filtered = pd.concat([due, hard, rand]).drop_duplicates()
-            df_filtered = df_filtered.sample(frac=1).reset_index(drop=True)
+    log = load_log()
 
-        else:
-            df_filtered = df.reset_index(drop=True)
-
-        if len(df_filtered) == 0:
-            st.warning("No cards available in this mode")
-
-        else:
-            if "i" not in st.session_state or st.session_state.i >= len(df_filtered):
-                st.session_state.i = 0
-
-            i = st.session_state.i
-            row = df_filtered.iloc[i]
-
-            # ----------------------
-            # PROGRESS
-            # ----------------------
-            st.caption(f"Card {i+1} / {len(df_filtered)}")
-            progress = (i + 1) / len(df_filtered)
-            st.progress(progress)
-
-            # ----------------------
-            # WORD CARD UI
-            # ----------------------
-            st.markdown(f"""
-            <div style="
-            padding:20px;
-            border-radius:15px;
-            background: linear-gradient(135deg,#4facfe,#00f2fe);
-            text-align:center;
-            color:white;
-            font-size:34px;
-            font-weight:bold;
-            margin-bottom:10px;">
-            {row['word']}
-            </div>
-            """, unsafe_allow_html=True)
-
-            # difficulty badge
-            difficulty = str(row["difficulty"]).lower()
-            if difficulty == "hard":
-                badge = "🔴 Hard"
-            elif difficulty == "easy":
-                badge = "🟢 Easy"
-            else:
-                badge = "🟡 Medium"
-
-            st.markdown(f"**Difficulty:** {badge}")
-
-            # ----------------------
-            # SHOW ANSWER
-            # ----------------------
-            if st.button("👀 Show Answer"):
-                st.success(row["translation"])
-                st.write(f"**Lemma:** {row['lemma']}")
-                st.write(f"**POS:** {row['pos']}")
-                st.info(row["sentence"])
-
-            # ----------------------
-            # BUTTONS
-            # ----------------------
-            col1, col2, col3, col4, col5 = st.columns(5)
-
-            def save_updated(updated):
-                full = load_words()
-                idx = full.index[full["word"] == row["word"]][0]
-                for k in updated.index:
-                    full.at[idx, k] = updated[k]
-                save_words(full)
-
-            # AGAIN
-            if col1.button("❌ Again"):
-                updated = row.copy()
-                updated["interval"] = 1
-                updated["ease"] = max(1.3, float(row["ease"]) - 0.2)
-                updated["repetitions"] = 0
-                updated["next_review"] = str(date.today() + timedelta(days=1))
-                updated["difficulty"] = "hard"
-                save_updated(updated)
-                st.session_state.i += 1
-                st.rerun()
-
-            # HARD
-            if col2.button("😬 Hard"):
-                updated = row.copy()
-                updated["interval"] = max(1, int(float(row["interval"])) + 1)
-                updated["ease"] = max(1.3, float(row["ease"]) - 0.05)
-                updated["repetitions"] = int(row["repetitions"]) + 1
-                updated["next_review"] = str(date.today() + timedelta(days=int(updated["interval"])))
-                updated["difficulty"] = "hard"
-                save_updated(updated)
-                st.session_state.i += 1
-                st.rerun()
-
-            # GOOD
-            if col3.button("🙂 Good"):
-                updated = row.copy()
-                updated["interval"] = max(1, int(float(row["interval"]) * float(row["ease"])))
-                updated["repetitions"] = int(row["repetitions"]) + 1
-                updated["next_review"] = str(date.today() + timedelta(days=int(updated["interval"])))
-                updated["difficulty"] = "medium"
-                save_updated(updated)
-                st.session_state.i += 1
-                st.rerun()
-
-            # EASY
-            if col4.button("😎 Easy"):
-                updated = row.copy()
-                updated["ease"] = float(row["ease"]) + 0.15
-                updated["interval"] = max(1, int(float(row["interval"]) * float(updated["ease"])))
-                updated["repetitions"] = int(row["repetitions"]) + 1
-                updated["next_review"] = str(date.today() + timedelta(days=int(updated["interval"])))
-                updated["difficulty"] = "easy"
-                save_updated(updated)
-                st.session_state.i += 1
-                st.rerun()
-
-            # HARD TOGGLE
-            if col5.button("🔥 Toggle"):
-                full = load_words()
-                idx = full.index[full["word"] == row["word"]][0]
-                current = str(full.at[idx, "difficulty"]).lower()
-                if current == "hard":
-                    full.at[idx, "difficulty"] = "medium"
-                    st.toast("Removed Hard")
-                else:
-                    full.at[idx, "difficulty"] = "hard"
-                    st.toast("Marked Hard")
-                save_words(full)
-                st.rerun()
+    st.write(log)
