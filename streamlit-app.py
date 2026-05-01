@@ -189,29 +189,57 @@ if mode == "Audio":
 
             st.success(f"Saved: {clean_word}")
             st.info(f"Before: {before} → After: {after}")
+
 # ======================
-# FLASHCARDS
+# FLASHCARDS (FIXED - LIVE DATA)
 # ======================
 if mode == "Flashcards":
     st.markdown("## 🧠 Flashcards")
 
     df = st.session_state.words_df
 
-    st.info(f"Words in flashcards: {len(df)}")
+    total = len(df)
+    st.info(f"Words in flashcards: {total}")
 
-    if len(df) > 0:
-        if "i" not in st.session_state:
-            st.session_state.i = 0
+    if total == 0:
+        st.warning("No words available")
+    else:
+        # 🔥 init index safely
+        if "fc_index" not in st.session_state:
+            st.session_state.fc_index = 0
 
-        row = df.iloc[st.session_state.i]
+        # 🔥 keep index in bounds (VERY IMPORTANT)
+        if st.session_state.fc_index >= total:
+            st.session_state.fc_index = 0
 
-        st.subheader(row["word"])
+        row = df.iloc[st.session_state.fc_index]
 
-        if st.button("Show"):
+        # WORD
+        st.markdown(f"### 🟦 {row['word']}")
+
+        # STATE: show / hide answer
+        if "show_answer" not in st.session_state:
+            st.session_state.show_answer = False
+
+        # SHOW BUTTON
+        if st.button("👁 Show Answer", key="show_btn"):
+            st.session_state.show_answer = True
+
+        if st.session_state.show_answer:
             st.success(row["translation"])
 
-        if st.button("Next"):
-            st.session_state.i = (st.session_state.i + 1) % len(df)
+        # NAVIGATION
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("➡️ Next", key="next_btn"):
+                st.session_state.fc_index = (st.session_state.fc_index + 1) % total
+                st.session_state.show_answer = False
+
+        with col2:
+            if st.button("🔄 Reset", key="reset_btn"):
+                st.session_state.fc_index = 0
+                st.session_state.show_answer = False
 
 # ======================
 # CALENDAR
