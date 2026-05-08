@@ -158,62 +158,7 @@ if mode == "Read":
             st.success(f"Saved: {word}")
             st.info(f"Before: {before} → After: {after}")
 
-# ======================
-# AUDIO
-# ======================
-if mode == "Audio":
-    st.markdown("## 🎧 Audio")
 
-    st.info(f"Saved Words Total: {len(st.session_state.words_df)}")
-
-    text = st.text_area("Paste transcript", height=300)
-    word = st.text_input("Input Unknown Word ")
-
-    if word:
-        st.markdown(f"### **{word}**")
-
-        t = translate(word)
-        st.success(t)
-
-        if st.button("💾 Save Word "):
-            before, after = add_word(word, t, text)
-            st.success(f"Saved: {word}")
-            st.info(f"Before: {before} → After: {after}")
-
-# ======================
-# FLASHCARDS
-# ======================
-if mode == "Flashcards":
-    st.markdown("## 🧠 Flashcards")
-
-    df = st.session_state.words_df
-
-    st.info(f"Words in flashcards: {len(df)}")
-
-    if len(df) > 0:
-        if "i" not in st.session_state:
-            st.session_state.i = 0
-
-        row = df.iloc[st.session_state.i]
-
-        st.subheader(row["word"])
-
-        if st.button("Show"):
-            st.success(row["translation"])
-
-        if st.button("Next"):
-            st.session_state.i = (st.session_state.i + 1) % len(df)
-
-# ======================
-# CALENDAR
-# ======================
-if mode == "Calendar":
-    st.markdown("## 📅 Calendar")
-
-    log = st.session_state.log_df
-
-    st.info(f"Log entries: {len(log)}")
-    st.dataframe(log)
 # ======================
 # AUDIO (FIXED - SESSION SAFE)
 # ======================
