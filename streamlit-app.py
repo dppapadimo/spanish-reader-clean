@@ -116,13 +116,11 @@ except Exception as e:
 def save_all():
     st.session_state.words_df.to_excel(
     WORDS_FILE,
-    index=False
-)
+    index=False)
 
     st.session_state.log_df.to_excel(
     LOG_FILE,
-    index=False
-)
+    index=False)
 
 def get_due_words(df):
     if len(df) == 0:
@@ -134,12 +132,10 @@ df2 = df.copy()
 
 df2["next_review"] = pd.to_datetime(
     df2["next_review"],
-    errors="coerce"
-)
+    errors="coerce")
 
 due = df2[
-    df2["next_review"].dt.date <= today
-]
+    df2["next_review"].dt.date <= today]
 
 return due
 
@@ -248,8 +244,7 @@ existing_words = (
     .astype(str)
     .str.lower()
     .str.strip()
-    .values
-)
+    .values)
 
 if clean_word in existing_words:
     return "duplicate", len(df)
@@ -268,13 +263,11 @@ new = {
     "interval": 1,
     "repetitions": 0,
     "next_review": str(date.today()),
-    "status": "learning"
-}
+    "status": "learning"}
 
 df = pd.concat(
     [df, pd.DataFrame([new])],
-    ignore_index=True
-)
+    ignore_index=True)
 
 st.session_state.words_df = df
 
