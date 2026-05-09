@@ -386,33 +386,31 @@ st.sidebar.markdown("## 💾 Save")
 
 if st.sidebar.button("Save Session"):
 
-save_all()
+    save_all()
 
-st.sidebar.success("Saved")
+    st.sidebar.success("Saved")
 
 
 if os.path.exists(WORDS_FILE):
 
 
-with open(WORDS_FILE, "rb") as f:
+    with open(WORDS_FILE, "rb") as f:
 
-    st.sidebar.download_button(
-        "⬇️ Download Words",
-        f,
-        file_name=WORDS_FILE
-    )
+        st.sidebar.download_button(
+            "⬇️ Download Words",
+            f,
+            file_name=WORDS_FILE)
 
 
 if os.path.exists(LOG_FILE):
 
 
-with open(LOG_FILE, "rb") as f:
+    with open(LOG_FILE, "rb") as f:
 
-    st.sidebar.download_button(
-        "⬇️ Download Logs",
-        f,
-        file_name=LOG_FILE
-    )
+        st.sidebar.download_button(
+            "⬇️ Download Logs",
+            f,
+            file_name=LOG_FILE)
 
 
 # =========================================
