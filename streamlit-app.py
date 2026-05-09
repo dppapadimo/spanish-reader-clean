@@ -785,7 +785,7 @@ with st.expander("⚙️ Debug"):
     st.write(
         f"Due: {len(get_due_words(st.session_state.words_df))}")
 
-
+'''
 # INSTALL
 
 pip install streamlit pandas openpyxl deep-translator matplotlib
@@ -827,3 +827,4 @@ Faster translation requests.
 ## ✔ Stable persistence
 
 No more rerun overwrite issue.
+'''
