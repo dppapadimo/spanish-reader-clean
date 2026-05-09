@@ -83,7 +83,7 @@ for col in EXPECTED_COLS:
 return df[EXPECTED_COLS]
 
 def load_words():
-if os.path.exists(WORDS_FILE):
+    if os.path.exists(WORDS_FILE):
 
     try:
         return fix_columns(pd.read_excel(WORDS_FILE))
@@ -93,7 +93,7 @@ if os.path.exists(WORDS_FILE):
 return pd.DataFrame(columns=EXPECTED_COLS)
 
 def load_log():
-if os.path.exists(LOG_FILE):
+    if os.path.exists(LOG_FILE):
 
     try:
         return pd.read_excel(LOG_FILE)
@@ -104,7 +104,7 @@ return pd.DataFrame(columns=["date", "count"]
 
 @st.cache_data(show_spinner=False)
 def translate(word):
-try:
+    try:
     return GoogleTranslator(
         source="auto",
         target="el"
@@ -114,18 +114,18 @@ except Exception as e:
     return f"Translation Error: {e}"
 
 def save_all():
-st.session_state.words_df.to_excel(
+    st.session_state.words_df.to_excel(
     WORDS_FILE,
     index=False
 )
 
-st.session_state.log_df.to_excel(
+    st.session_state.log_df.to_excel(
     LOG_FILE,
     index=False
 )
 
 def get_due_words(df):
-if len(df) == 0:
+    if len(df) == 0:
     return df
 
 today = date.today()
