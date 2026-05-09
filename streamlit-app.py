@@ -105,12 +105,12 @@ def load_log():
 @st.cache_data(show_spinner=False)
 def translate(word):
     try:
-    return GoogleTranslator(
-        source="auto",
-        target="el").translate(word)
+        return GoogleTranslator(
+            source="auto",
+            target="el").translate(word)
 
     except Exception as e:
-    return f"Translation Error: {e}"
+        return f"Translation Error: {e}"
 
 def save_all():
     st.session_state.words_df.to_excel(
