@@ -1,4 +1,4 @@
-# =========================================
+οι# =========================================
 
 # Spanish Reader v8.5.2
 
@@ -137,13 +137,9 @@ def get_due_words(df):
         df2["next_review"].dt.date <= today]
 
     return due
-
 # =========================================
-
 # SPACED REPETITION
-
 # =========================================
-
 def update_review(index, grade):
     df = st.session_state.words_df
 
@@ -152,69 +148,50 @@ def update_review(index, grade):
     ease = float(row["ease"])
     interval = int(row["interval"])
     repetitions = int(row["repetitions"])
-
 # =====================
 # AGAIN
 # =====================
-
-if grade == "Again":
-
-    interval = 1
-    repetitions = 0
-    ease = max(1.3, ease - 0.2)
-
+    if grade == "Again":       
+        interval = 1
+        repetitions = 0
+        ease = max(1.3, ease - 0.2)
 # =====================
 # HARD
 # =====================
-
-elif grade == "Hard":
-
-    interval = max(1, int(interval * 1.2))
-    repetitions += 1
-    ease = max(1.3, ease - 0.05)
-
+    elif grade == "Hard":
+        interval = max(1, int(interval * 1.2))
+        repetitions += 1
+        ease = max(1.3, ease - 0.05)
 # =====================
 # GOOD
 # =====================
-
-elif grade == "Good":
-
-    interval = max(1, int(interval * ease))
-    repetitions += 1
-
+    elif grade == "Good":
+        interval = max(1, int(interval * ease))
+        repetitions += 1
 # =====================
 # EASY
 # =====================
-
-elif grade == "Easy":
-
-    interval = max(2, int(interval * ease * 1.5))
-    repetitions += 1
-    ease += 0.1
-
-next_review = date.today() + timedelta(days=interval)
-
-df.at[index, "ease"] = round(ease, 2)
-df.at[index, "interval"] = interval
-df.at[index, "repetitions"] = repetitions
-df.at[index, "next_review"] = str(next_review)
-
+    elif grade == "Easy"
+        interval = max(2, int(interval * ease * 1.5))
+        repetitions += 1
+        ease += 0.1
+    next_review = date.today() + timedelta(days=interval)
+    
+    df.at[index, "ease"] = round(ease, 2)
+    df.at[index, "interval"] = interval
+    df.at[index, "repetitions"] = repetitions
+    df.at[index, "next_review"] = str(next_review)
 # mastered
-if repetitions >= 10:
-    df.at[index, "status"] = "mastered"
-else:
-    df.at[index, "status"] = "learning"
+    if repetitions >= 10:
+        df.at[index, "status"] = "mastered"
+    else:
+        df.at[index, "status"] = "learning"
+    st.session_state.words_df = df
 
-st.session_state.words_df = df
-
-save_all()
-
+    save_all()
 # =========================================
-
 # SESSION STATE
-
 # =========================================
-
 if "words_df" not in st.session_state:
     st.session_state.words_df = load_words()
 
