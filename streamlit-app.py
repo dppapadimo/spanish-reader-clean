@@ -74,7 +74,7 @@ EXPECTED_COLS = [
 
 def fix_columns(df):
 
-df.columns = [c.lower().strip() for c in df.columns]
+    df.columns = [c.lower().strip() for c in df.columns]
 
 for col in EXPECTED_COLS:
     if col not in df.columns:
