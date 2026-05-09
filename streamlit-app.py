@@ -448,16 +448,14 @@ with col4:
 if mode == "Read":
 
 
-st.markdown("## 📖 Read")
+    st.markdown("## 📖 Read")
 
-text = st.text_area(
-    "Paste Text",
-    height=300
-)
+    text = st.text_area(
+        "Paste Text",
+        height=300)
 
-word = st.text_input(
-    "Unknown Word"
-)
+    word = st.text_input(
+        "Unknown Word")
 
 if word:
 
@@ -503,17 +501,15 @@ if word:
 if mode == "Audio":
 
 
-st.markdown("## 🎧 Audio")
+    st.markdown("## 🎧 Audio")
 
-text = st.text_area(
-    "Paste Transcript",
-    height=300
-)
+    text = st.text_area(
+        "Paste Transcript",
+        height=300)
 
-word = st.text_input(
-    "Unknown Word",
-    key="audio_word"
-)
+    word = st.text_input(
+        "Unknown Word",
+        key="audio_word")
 
 if word:
 
@@ -562,15 +558,14 @@ if word:
 if mode == "Flashcards":
 
 
-st.markdown("## 🧠 Due Reviews")
+    st.markdown("## 🧠 Due Reviews")
 
-due_df = get_due_words(
-    st.session_state.words_df
-)
+    due_df = get_due_words(
+        st.session_state.words_df)
 
-total = len(due_df)
+    total = len(due_df)
 
-st.info(f"Due cards: {total}")
+    st.info(f"Due cards: {total}")
 
 if total == 0:
 
@@ -686,18 +681,17 @@ else:
 if mode == "Search":
 
 
-st.markdown("## 🔍 Search Words")
+    st.markdown("## 🔍 Search Words")
 
-df = st.session_state.words_df
+    df = st.session_state.words_df
 
-search = st.text_input("Search")
+    search = st.text_input("Search")
 
-status_filter = st.selectbox(
-    "Status",
-    ["All", "learning", "mastered"]
-)
+    status_filter = st.selectbox(
+        "Status",
+        ["All", "learning", "mastered"])
 
-filtered = df.copy()
+    filtered = df.copy()
 
 if search:
 
@@ -725,9 +719,9 @@ st.dataframe(filtered)
 if mode == "Statistics":
 
 
-st.markdown("## 📊 Statistics")
+    st.markdown("## 📊 Statistics")
 
-log = st.session_state.log_df
+    log = st.session_state.log_df
 
 if len(log) == 0:
 
@@ -766,11 +760,11 @@ else:
 if mode == "Calendar":
 
 
-st.markdown("## 📅 Study Calendar")
+    st.markdown("## 📅 Study Calendar")
 
-log = st.session_state.log_df
+    log = st.session_state.log_df
 
-st.dataframe(log)
+    st.dataframe(log)
 
 
 # =========================================
@@ -782,17 +776,14 @@ st.dataframe(log)
 with st.expander("⚙️ Debug"):
 
 
-st.write(
-    st.session_state.words_df.head()
-)
+    st.write(
+        st.session_state.words_df.head())
 
-st.write(
-    f"Words: {len(st.session_state.words_df)}"
-)
+    st.write(
+        f"Words: {len(st.session_state.words_df)}")
 
-st.write(
-    f"Due: {len(get_due_words(st.session_state.words_df))}"
-)
+    st.write(
+        f"Due: {len(get_due_words(st.session_state.words_df))}")
 
 
 # INSTALL
