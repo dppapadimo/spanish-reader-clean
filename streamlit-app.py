@@ -426,22 +426,18 @@ due_words = get_due_words(df_global)
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-st.metric("Total Words", len(df_global))
+    st.metric("Total Words", len(df_global))
 
 with col2:
-st.metric("Due Reviews", len(due_words))
+    st.metric("Due Reviews", len(due_words))
 
 with col3:
-st.metric(
-"Mastered",
-len(df_global[df_global["status"] == "mastered"])
-)
+    st.metric("Mastered",
+    len(df_global[df_global["status"] == "mastered"]))
 
 with col4:
-st.metric(
-"Learning",
-len(df_global[df_global["status"] == "learning"])
-)
+    st.metric("Learning",
+    len(df_global[df_global["status"] == "learning"]))
 
 # =========================================
 
