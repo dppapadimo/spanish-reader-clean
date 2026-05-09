@@ -1,744 +1,360 @@
-# Spanish Reader v8.5.3
-
-# Fully Fixed Stable Version
-
 import streamlit as st
 import pandas as pd
 from deep_translator import GoogleTranslator
 from datetime import date, timedelta
-import matplotlib.pyplot as plt
 import os
+import matplotlib.pyplot as plt
 
-# =========================================
-
+# =========================
 # CONFIG
-
-# =========================================
+# =========================
 
 WORDS_FILE = "spanish_words_unknown.xlsx"
 LOG_FILE = "study_log.xlsx"
 
 EXPECTED_COLS = [
-"word",
-"translation",
-"lemma",
-"pos",
-"sentence",
-"difficulty",
-"date",
-"ease",
-"interval",
-"repetitions",
-"next_review",
-"status"
+    "word",
+    "translation",
+    "lemma",
+    "pos",
+    "sentence",
+    "difficulty",
+    "date",
+    "ease",
+    "interval",
+    "repetitions",
+    "next_review",
+    "status"
 ]
 
-# =========================================
-
+# =========================
 # HELPERS
-
-# =========================================
+# =========================
 
 def fix_columns(df):
+    df.columns = [c.lower().strip() for c in df.columns]
 
-```
-df.columns = [c.lower().strip() for c in df.columns]
+    for col in EXPECTED_COLS:
+        if col not in df.columns:
+            df[col] = ""
 
-for col in EXPECTED_COLS:
-    if col not in df.columns:
-        df[col] = ""
+    return df[EXPECTED_COLS]
 
-return df[EXPECTED_COLS]
-```
 
 def load_words():
+    if os.path.exists(WORDS_FILE):
+        try:
+            return fix_columns(pd.read_excel(WORDS_FILE))
+        except:
+            pass
+    return pd.DataFrame(columns=EXPECTED_COLS)
 
-```
-if os.path.exists(WORDS_FILE):
-
-    try:
-        return fix_columns(pd.read_excel(WORDS_FILE))
-    except Exception:
-        pass
-
-return pd.DataFrame(columns=EXPECTED_COLS)
-```
 
 def load_log():
+    if os.path.exists(LOG_FILE):
+        try:
+            return pd.read_excel(LOG_FILE)
+        except:
+            pass
+    return pd.DataFrame(columns=["date", "count"])
 
-```
-if os.path.exists(LOG_FILE):
-
-    try:
-        return pd.read_excel(LOG_FILE)
-    except Exception:
-        pass
-
-return pd.DataFrame(columns=["date", "count"])
-```
 
 @st.cache_data(show_spinner=False)
 def translate(word):
+    try:
+        return GoogleTranslator(source="auto", target="el").translate(word)
+    except Exception as e:
+        return f"Translation Error: {e}"
 
-```
-try:
-    return GoogleTranslator(
-        source="auto",
-        target="el"
-    ).translate(word)
-
-except Exception as e:
-    return f"Translation Error: {e}"
-```
 
 def save_all():
+    st.session_state.words_df.to_excel(WORDS_FILE, index=False)
+    st.session_state.log_df.to_excel(LOG_FILE, index=False)
 
-```
-st.session_state.words_df.to_excel(
-    WORDS_FILE,
-    index=False
-)
-
-st.session_state.log_df.to_excel(
-    LOG_FILE,
-    index=False
-)
-```
 
 def get_due_words(df):
+    if len(df) == 0:
+        return df
 
-```
-if len(df) == 0:
-    return df
+    df2 = df.copy()
+    df2["next_review"] = pd.to_datetime(df2["next_review"], errors="coerce")
 
-df2 = df.copy()
+    today = date.today()
+    return df2[df2["next_review"].dt.date <= today]
 
-df2["next_review"] = pd.to_datetime(
-    df2["next_review"],
-    errors="coerce"
-)
 
-today = date.today()
-
-due = df2[
-    df2["next_review"].dt.date <= today
-]
-
-return due
-```
-
-# =========================================
-
+# =========================
 # SPACED REPETITION
-
-# =========================================
+# =========================
 
 def update_review(index, grade):
+    df = st.session_state.words_df
+    row = df.iloc[index]
 
-```
-df = st.session_state.words_df
+    ease = float(row["ease"])
+    interval = int(row["interval"])
+    repetitions = int(row["repetitions"])
 
-row = df.iloc[index]
+    if grade == "Again":
+        interval = 1
+        repetitions = 0
+        ease = max(1.3, ease - 0.2)
 
-ease = float(row["ease"])
-interval = int(row["interval"])
-repetitions = int(row["repetitions"])
+    elif grade == "Hard":
+        interval = max(1, int(interval * 1.2))
+        repetitions += 1
+        ease = max(1.3, ease - 0.05)
 
-if grade == "Again":
+    elif grade == "Good":
+        interval = max(1, int(interval * ease))
+        repetitions += 1
 
-    interval = 1
-    repetitions = 0
-    ease = max(1.3, ease - 0.2)
+    elif grade == "Easy":
+        interval = max(2, int(interval * ease * 1.5))
+        repetitions += 1
+        ease += 0.1
 
-elif grade == "Hard":
+    next_review = date.today() + timedelta(days=interval)
 
-    interval = max(1, int(interval * 1.2))
-    repetitions += 1
-    ease = max(1.3, ease - 0.05)
+    df.at[index, "ease"] = round(ease, 2)
+    df.at[index, "interval"] = interval
+    df.at[index, "repetitions"] = repetitions
+    df.at[index, "next_review"] = str(next_review)
 
-elif grade == "Good":
+    df.at[index, "status"] = "mastered" if repetitions >= 10 else "learning"
 
-    interval = max(1, int(interval * ease))
-    repetitions += 1
+    st.session_state.words_df = df
+    save_all()
 
-elif grade == "Easy":
 
-    interval = max(2, int(interval * ease * 1.5))
-    repetitions += 1
-    ease += 0.1
-
-next_review = date.today() + timedelta(days=interval)
-
-df.at[index, "ease"] = round(ease, 2)
-df.at[index, "interval"] = interval
-df.at[index, "repetitions"] = repetitions
-df.at[index, "next_review"] = str(next_review)
-
-if repetitions >= 10:
-    df.at[index, "status"] = "mastered"
-else:
-    df.at[index, "status"] = "learning"
-
-st.session_state.words_df = df
-
-save_all()
-```
-
-# =========================================
-
+# =========================
 # SESSION STATE
-
-# =========================================
+# =========================
 
 if "words_df" not in st.session_state:
-st.session_state.words_df = load_words()
+    st.session_state.words_df = load_words()
 
 if "log_df" not in st.session_state:
-st.session_state.log_df = load_log()
+    st.session_state.log_df = load_log()
 
 if "words_loaded" not in st.session_state:
-st.session_state.words_loaded = False
+    st.session_state.words_loaded = False
 
 if "log_loaded" not in st.session_state:
-st.session_state.log_loaded = False
+    st.session_state.log_loaded = False
 
-# =========================================
 
+# =========================
 # ADD WORD
-
-# =========================================
+# =========================
 
 def add_word(word, translation, text):
+    clean_word = word.strip().lower()
+    df = st.session_state.words_df
 
-```
-clean_word = word.strip().lower()
+    existing = df["word"].astype(str).str.lower().str.strip().values
 
-df = st.session_state.words_df
+    if clean_word in existing:
+        return "duplicate", len(df)
 
-existing_words = (
-    df["word"]
-    .astype(str)
-    .str.lower()
-    .str.strip()
-    .values
-)
+    before = len(df)
 
-if clean_word in existing_words:
-    return "duplicate", len(df)
+    new = {
+        "word": word.strip(),
+        "translation": translation,
+        "lemma": "",
+        "pos": "",
+        "sentence": text[:180],
+        "difficulty": "medium",
+        "date": str(date.today()),
+        "ease": 2.5,
+        "interval": 1,
+        "repetitions": 0,
+        "next_review": str(date.today()),
+        "status": "learning"
+    }
 
-before = len(df)
+    df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
+    st.session_state.words_df = df
 
-new = {
-    "word": word.strip(),
-    "translation": translation,
-    "lemma": "",
-    "pos": "",
-    "sentence": text[:180],
-    "difficulty": "medium",
-    "date": str(date.today()),
-    "ease": 2.5,
-    "interval": 1,
-    "repetitions": 0,
-    "next_review": str(date.today()),
-    "status": "learning"
-}
+    log = st.session_state.log_df
+    today = str(date.today())
 
-df = pd.concat(
-    [df, pd.DataFrame([new])],
-    ignore_index=True
-)
+    if today in log["date"].astype(str).values:
+        log.loc[log["date"].astype(str) == today, "count"] += 1
+    else:
+        log = pd.concat([log, pd.DataFrame([{"date": today, "count": 1}])], ignore_index=True)
 
-st.session_state.words_df = df
+    st.session_state.log_df = log
 
-# UPDATE LOG
+    save_all()
 
-log = st.session_state.log_df
+    return before, len(df)
 
-today = str(date.today())
 
-if today in log["date"].astype(str).values:
-
-    log.loc[
-        log["date"].astype(str) == today,
-        "count"
-    ] += 1
-
-else:
-
-    log = pd.concat(
-        [
-            log,
-            pd.DataFrame([
-                {
-                    "date": today,
-                    "count": 1
-                }
-            ])
-        ],
-        ignore_index=True
-    )
-
-st.session_state.log_df = log
-
-save_all()
-
-after = len(df)
-
-return before, after
-```
-
-# =========================================
-
+# =========================
 # UI
+# =========================
 
-# =========================================
-
-st.set_page_config(
-page_title="Spanish Reader v8.5.3",
-layout="wide"
-)
-
+st.set_page_config(page_title="Spanish Reader v8.5.3", layout="wide")
 st.title("📖 Spanish Reader v8.5.3")
 
-mode = st.sidebar.radio(
-"Mode",
-[
-"Read",
-"Audio",
-"Flashcards",
-"Search",
-"Statistics",
-"Calendar"
-]
-)
+mode = st.sidebar.radio("Mode", ["Read", "Audio", "Flashcards", "Search", "Statistics", "Calendar"])
 
-# =========================================
 
-# DATA MANAGEMENT
-
-# =========================================
-
-st.sidebar.markdown("## 📁 Data")
-
-uploaded_excel = st.sidebar.file_uploader(
-"Upload Words",
-type=["xlsx"]
-)
-
-if uploaded_excel and not st.session_state.words_loaded:
-
-```
-df = fix_columns(pd.read_excel(uploaded_excel))
-
-st.session_state.words_df = df.copy()
-
-st.session_state.words_loaded = True
-
-save_all()
-
-st.sidebar.success("Words loaded")
-```
-
-uploaded_log = st.sidebar.file_uploader(
-"Upload Logs",
-type=["xlsx"]
-)
-
-if uploaded_log and not st.session_state.log_loaded:
-
-```
-log = pd.read_excel(uploaded_log)
-
-st.session_state.log_df = log
-
-st.session_state.log_loaded = True
-
-save_all()
-
-st.sidebar.success("Logs loaded")
-```
-
-# =========================================
-
-# SAVE / DOWNLOAD
-
-# =========================================
-
-st.sidebar.markdown("## 💾 Save")
-
-if st.sidebar.button("Save Session"):
-
-```
-save_all()
-
-st.sidebar.success("Saved")
-```
-
-if os.path.exists(WORDS_FILE):
-
-```
-with open(WORDS_FILE, "rb") as f:
-
-    st.sidebar.download_button(
-        "⬇️ Download Words",
-        f,
-        file_name=WORDS_FILE
-    )
-```
-
-if os.path.exists(LOG_FILE):
-
-```
-with open(LOG_FILE, "rb") as f:
-
-    st.sidebar.download_button(
-        "⬇️ Download Logs",
-        f,
-        file_name=LOG_FILE
-    )
-```
-
-# =========================================
-
+# =========================
 # DASHBOARD
-
-# =========================================
+# =========================
 
 df_global = st.session_state.words_df
-
 due_words = get_due_words(df_global)
 
-col1, col2, col3, col4 = st.columns(4)
+c1, c2, c3, c4 = st.columns(4)
 
-with col1:
-st.metric("Total Words", len(df_global))
+c1.metric("Total", len(df_global))
+c2.metric("Due", len(due_words))
+c3.metric("Mastered", len(df_global[df_global["status"] == "mastered"]))
+c4.metric("Learning", len(df_global[df_global["status"] == "learning"]))
 
-with col2:
-st.metric("Due Reviews", len(due_words))
 
-with col3:
-st.metric(
-"Mastered",
-len(df_global[df_global["status"] == "mastered"])
-)
-
-with col4:
-st.metric(
-"Learning",
-len(df_global[df_global["status"] == "learning"])
-)
-
-# =========================================
-
+# =========================
 # READ
-
-# =========================================
+# =========================
 
 if mode == "Read":
+    st.subheader("Read")
 
-```
-st.markdown("## 📖 Read")
+    text = st.text_area("Text", height=250)
+    word = st.text_input("Unknown word")
 
-text = st.text_area(
-    "Paste Text",
-    height=300
-)
+    if word:
+        translation = translate(word)
+        st.success(translation)
 
-word = st.text_input("Unknown Word")
+        if st.button("Save"):
+            result = add_word(word, translation, text)
 
-if word:
+            if result[0] == "duplicate":
+                st.warning("Already exists")
+            else:
+                st.success(f"Saved {result}")
 
-    clean_word = word.strip()
 
-    st.markdown(f"### {clean_word}")
-
-    t = translate(clean_word)
-
-    st.success(t)
-
-    if st.button("💾 Save Word"):
-
-        result = add_word(
-            clean_word,
-            t,
-            text
-        )
-
-        if result[0] == "duplicate":
-            st.warning(f"'{clean_word}' already exists")
-        else:
-            before, after = result
-            st.success(f"Saved | {before} → {after}")
-            st.rerun()
-```
-
-# =========================================
-
+# =========================
 # AUDIO
-
-# =========================================
+# =========================
 
 if mode == "Audio":
+    st.subheader("Audio")
 
-```
-st.markdown("## 🎧 Audio")
+    text = st.text_area("Transcript", height=250)
+    word = st.text_input("Word", key="audio")
 
-text = st.text_area(
-    "Paste Transcript",
-    height=300
-)
+    if word:
+        translation = translate(word)
+        st.success(translation)
 
-word = st.text_input(
-    "Unknown Word",
-    key="audio_word"
-)
+        if st.button("Save Audio", key="audio_btn"):
+            result = add_word(word, translation, text)
 
-if word:
+            if result[0] == "duplicate":
+                st.warning("Already exists")
+            else:
+                st.success(f"Saved {result}")
 
-    clean_word = word.strip()
 
-    st.markdown(f"### {clean_word}")
-
-    t = translate(clean_word)
-
-    st.success(t)
-
-    if st.button(
-        "💾 Save Word",
-        key="audio_save"
-    ):
-
-        result = add_word(
-            clean_word,
-            t,
-            text
-        )
-
-        if result[0] == "duplicate":
-            st.warning(f"'{clean_word}' already exists")
-        else:
-            before, after = result
-            st.success(f"Saved | {before} → {after}")
-            st.rerun()
-```
-
-# =========================================
-
+# =========================
 # FLASHCARDS
-
-# =========================================
+# =========================
 
 if mode == "Flashcards":
+    st.subheader("Due Reviews")
 
-```
-st.markdown("## 🧠 Due Reviews")
+    due_df = get_due_words(st.session_state.words_df)
 
-due_df = get_due_words(st.session_state.words_df)
+    if len(due_df) == 0:
+        st.success("No due cards")
+    else:
+        if "i" not in st.session_state:
+            st.session_state.i = 0
 
-total = len(due_df)
+        idxs = due_df.index.tolist()
+        real_index = idxs[st.session_state.i]
 
-st.info(f"Due cards: {total}")
+        row = st.session_state.words_df.iloc[real_index]
 
-if total == 0:
+        st.write("###", row["word"])
 
-    st.success("No reviews due today 🎉")
+        if st.button("Show"):
+            st.success(row["translation"])
 
-else:
+        col1, col2, col3, col4 = st.columns(4)
 
-    if "fc_index" not in st.session_state:
-        st.session_state.fc_index = 0
+        if col1.button("Again"):
+            update_review(real_index, "Again")
+            st.rerun()
 
-    if "show_answer" not in st.session_state:
-        st.session_state.show_answer = False
+        if col2.button("Hard"):
+            update_review(real_index, "Hard")
+            st.rerun()
 
-    if st.session_state.fc_index >= total:
-        st.session_state.fc_index = 0
+        if col3.button("Good"):
+            update_review(real_index, "Good")
+            st.rerun()
 
-    review_indexes = due_df.index.tolist()
+        if col4.button("Easy"):
+            update_review(real_index, "Easy")
+            st.rerun()
 
-    current_real_index = review_indexes[
-        st.session_state.fc_index
-    ]
 
-    row = st.session_state.words_df.iloc[
-        current_real_index
-    ]
-
-    st.markdown(f"# 🟦 {row['word']}")
-
-    st.caption(row['sentence'])
-
-    if st.button("👁 Show Answer"):
-        st.session_state.show_answer = True
-
-    if st.session_state.show_answer:
-
-        st.success(row['translation'])
-
-        st.write(f"Ease: {row['ease']}")
-        st.write(f"Interval: {row['interval']} days")
-        st.write(f"Repetitions: {row['repetitions']}")
-
-        c1, c2, c3, c4 = st.columns(4)
-
-        with c1:
-            if st.button("🔴 Again"):
-                update_review(current_real_index, "Again")
-                st.session_state.show_answer = False
-                st.rerun()
-
-        with c2:
-            if st.button("🟠 Hard"):
-                update_review(current_real_index, "Hard")
-                st.session_state.show_answer = False
-                st.rerun()
-
-        with c3:
-            if st.button("🟢 Good"):
-                update_review(current_real_index, "Good")
-                st.session_state.show_answer = False
-                st.rerun()
-
-        with c4:
-            if st.button("🔵 Easy"):
-                update_review(current_real_index, "Easy")
-                st.session_state.show_answer = False
-                st.rerun()
-
-    if st.button("➡️ Next"):
-
-        st.session_state.fc_index = (
-            st.session_state.fc_index + 1
-        ) % total
-
-        st.session_state.show_answer = False
-
-        st.rerun()
-```
-
-# =========================================
-
+# =========================
 # SEARCH
-
-# =========================================
+# =========================
 
 if mode == "Search":
+    st.subheader("Search")
 
-```
-st.markdown("## 🔍 Search")
+    q = st.text_input("Search")
+    df = st.session_state.words_df
 
-df = st.session_state.words_df
+    if q:
+        df = df[df["word"].str.contains(q, case=False)]
 
-search = st.text_input("Search")
+    st.dataframe(df)
 
-status_filter = st.selectbox(
-    "Status",
-    ["All", "learning", "mastered"]
-)
 
-filtered = df.copy()
-
-if search:
-
-    filtered = filtered[
-        filtered["word"]
-        .astype(str)
-        .str.contains(search, case=False)
-    ]
-
-if status_filter != "All":
-
-    filtered = filtered[
-        filtered["status"] == status_filter
-    ]
-
-st.dataframe(filtered)
-```
-
-# =========================================
-
+# =========================
 # STATISTICS
-
-# =========================================
+# =========================
 
 if mode == "Statistics":
+    st.subheader("Stats")
 
-```
-st.markdown("## 📊 Statistics")
+    log = st.session_state.log_df
 
-log = st.session_state.log_df
+    if len(log) > 0:
+        log["date"] = pd.to_datetime(log["date"])
 
-if len(log) == 0:
+        fig, ax = plt.subplots()
+        ax.plot(log["date"], log["count"])
 
-    st.warning("No statistics yet")
+        st.pyplot(fig)
 
-else:
+    st.dataframe(log)
 
-    log2 = log.copy()
 
-    log2["date"] = pd.to_datetime(log2["date"])
-
-    fig, ax = plt.subplots(figsize=(10, 4))
-
-    ax.plot(log2["date"], log2["count"])
-
-    ax.set_title("Words Learned Per Day")
-
-    ax.set_xlabel("Date")
-
-    ax.set_ylabel("Words")
-
-    st.pyplot(fig)
-
-    st.dataframe(log2)
-```
-
-# =========================================
-
+# =========================
 # CALENDAR
-
-# =========================================
+# =========================
 
 if mode == "Calendar":
+    st.subheader("Calendar")
+    st.dataframe(st.session_state.log_df)
 
-```
-st.markdown("## 📅 Study Calendar")
 
-st.dataframe(st.session_state.log_df)
-```
-
-# =========================================
-
+# =========================
 # DEBUG
+# =========================
 
-# =========================================
-
-with st.expander("⚙️ Debug"):
-
-```
-st.write(st.session_state.words_df.head())
-
-st.write(
-    f"Words: {len(st.session_state.words_df)}"
-)
-
-st.write(
-    f"Due: {len(get_due_words(st.session_state.words_df))}"
-)
-```
-
-# =========================================
-
-# INSTALL
-
-# =========================================
-
-# pip install streamlit pandas openpyxl deep-translator matplotlib
-
-# =========================================
-
-# RUN
-
-# =========================================
-
-# streamlit run app.py
+with st.expander("Debug"):
+    st.write(st.session_state.words_df.head())
