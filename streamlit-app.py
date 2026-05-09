@@ -123,20 +123,20 @@ def save_all():
 
 def get_due_words(df):
     if len(df) == 0:
-    return df
+        return df
 
-today = date.today()
+    today = date.today()
 
-df2 = df.copy()
+    df2 = df.copy()
 
-df2["next_review"] = pd.to_datetime(
-    df2["next_review"],
-    errors="coerce")
+    df2["next_review"] = pd.to_datetime(
+        df2["next_review"],
+        errors="coerce")
 
-due = df2[
-    df2["next_review"].dt.date <= today]
+    due = df2[
+        df2["next_review"].dt.date <= today]
 
-return due
+    return due
 
 # =========================================
 
@@ -145,13 +145,13 @@ return due
 # =========================================
 
 def update_review(index, grade):
-df = st.session_state.words_df
+    df = st.session_state.words_df
 
-row = df.iloc[index]
+    row = df.iloc[index]
 
-ease = float(row["ease"])
-interval = int(row["interval"])
-repetitions = int(row["repetitions"])
+    ease = float(row["ease"])
+    interval = int(row["interval"])
+    repetitions = int(row["repetitions"])
 
 # =====================
 # AGAIN
