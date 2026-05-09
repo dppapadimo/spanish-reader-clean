@@ -74,7 +74,6 @@ EXPECTED_COLS = [
 
 def fix_columns(df):
 
-```
 df.columns = [c.lower().strip() for c in df.columns]
 
 for col in EXPECTED_COLS:
@@ -82,11 +81,8 @@ for col in EXPECTED_COLS:
         df[col] = ""
 
 return df[EXPECTED_COLS]
-```
 
 def load_words():
-
-```
 if os.path.exists(WORDS_FILE):
 
     try:
@@ -95,11 +91,8 @@ if os.path.exists(WORDS_FILE):
         pass
 
 return pd.DataFrame(columns=EXPECTED_COLS)
-```
 
 def load_log():
-
-```
 if os.path.exists(LOG_FILE):
 
     try:
@@ -107,13 +100,10 @@ if os.path.exists(LOG_FILE):
     except:
         pass
 
-return pd.DataFrame(columns=["date", "count"])
-```
+return pd.DataFrame(columns=["date", "count"]
 
 @st.cache_data(show_spinner=False)
 def translate(word):
-
-```
 try:
     return GoogleTranslator(
         source="auto",
@@ -122,11 +112,8 @@ try:
 
 except Exception as e:
     return f"Translation Error: {e}"
-```
 
 def save_all():
-
-```
 st.session_state.words_df.to_excel(
     WORDS_FILE,
     index=False
@@ -136,11 +123,8 @@ st.session_state.log_df.to_excel(
     LOG_FILE,
     index=False
 )
-```
 
 def get_due_words(df):
-
-```
 if len(df) == 0:
     return df
 
@@ -158,7 +142,6 @@ due = df2[
 ]
 
 return due
-```
 
 # =========================================
 
@@ -167,8 +150,6 @@ return due
 # =========================================
 
 def update_review(index, grade):
-
-```
 df = st.session_state.words_df
 
 row = df.iloc[index]
@@ -232,7 +213,6 @@ else:
 st.session_state.words_df = df
 
 save_all()
-```
 
 # =========================================
 
@@ -259,8 +239,6 @@ st.session_state.log_loaded = False
 # =========================================
 
 def add_word(word, translation, text):
-
-```
 clean_word = word.strip().lower()
 
 df = st.session_state.words_df
@@ -337,7 +315,6 @@ save_all()
 after = len(df)
 
 return before, after
-```
 
 # =========================================
 
@@ -379,7 +356,6 @@ type=["xlsx"]
 
 if uploaded_excel and not st.session_state.words_loaded:
 
-```
 df = fix_columns(
     pd.read_excel(uploaded_excel)
 )
@@ -391,7 +367,6 @@ st.session_state.words_loaded = True
 save_all()
 
 st.sidebar.success("Words loaded")
-```
 
 uploaded_log = st.sidebar.file_uploader(
 "Upload Logs",
@@ -400,7 +375,6 @@ type=["xlsx"]
 
 if uploaded_log and not st.session_state.log_loaded:
 
-```
 log = pd.read_excel(uploaded_log)
 
 st.session_state.log_df = log
@@ -410,7 +384,7 @@ st.session_state.log_loaded = True
 save_all()
 
 st.sidebar.success("Logs loaded")
-```
+
 
 # =========================================
 
@@ -422,15 +396,14 @@ st.sidebar.markdown("## 💾 Save")
 
 if st.sidebar.button("Save Session"):
 
-```
 save_all()
 
 st.sidebar.success("Saved")
-```
+
 
 if os.path.exists(WORDS_FILE):
 
-```
+
 with open(WORDS_FILE, "rb") as f:
 
     st.sidebar.download_button(
@@ -438,11 +411,11 @@ with open(WORDS_FILE, "rb") as f:
         f,
         file_name=WORDS_FILE
     )
-```
+
 
 if os.path.exists(LOG_FILE):
 
-```
+
 with open(LOG_FILE, "rb") as f:
 
     st.sidebar.download_button(
@@ -450,7 +423,7 @@ with open(LOG_FILE, "rb") as f:
         f,
         file_name=LOG_FILE
     )
-```
+
 
 # =========================================
 
@@ -490,7 +463,7 @@ len(df_global[df_global["status"] == "learning"])
 
 if mode == "Read":
 
-```
+
 st.markdown("## 📖 Read")
 
 text = st.text_area(
@@ -535,7 +508,7 @@ if word:
             )
 
             st.rerun()
-```
+
 
 # =========================================
 
@@ -545,7 +518,7 @@ if word:
 
 if mode == "Audio":
 
-```
+
 st.markdown("## 🎧 Audio")
 
 text = st.text_area(
@@ -594,7 +567,7 @@ if word:
             )
 
             st.rerun()
-```
+
 
 # =========================================
 
@@ -604,7 +577,7 @@ if word:
 
 if mode == "Flashcards":
 
-```
+
 st.markdown("## 🧠 Due Reviews")
 
 due_df = get_due_words(
@@ -718,7 +691,7 @@ else:
         st.session_state.show_answer = False
 
         st.rerun()
-```
+
 
 # =========================================
 
@@ -728,7 +701,7 @@ else:
 
 if mode == "Search":
 
-```
+
 st.markdown("## 🔍 Search Words")
 
 df = st.session_state.words_df
@@ -757,7 +730,7 @@ if status_filter != "All":
     ]
 
 st.dataframe(filtered)
-```
+
 
 # =========================================
 
@@ -767,7 +740,7 @@ st.dataframe(filtered)
 
 if mode == "Statistics":
 
-```
+
 st.markdown("## 📊 Statistics")
 
 log = st.session_state.log_df
@@ -798,7 +771,7 @@ else:
     st.pyplot(fig)
 
     st.dataframe(log2)
-```
+
 
 # =========================================
 
@@ -808,13 +781,13 @@ else:
 
 if mode == "Calendar":
 
-```
+
 st.markdown("## 📅 Study Calendar")
 
 log = st.session_state.log_df
 
 st.dataframe(log)
-```
+
 
 # =========================================
 
@@ -824,7 +797,7 @@ st.dataframe(log)
 
 with st.expander("⚙️ Debug"):
 
-```
+
 st.write(
     st.session_state.words_df.head()
 )
@@ -836,7 +809,7 @@ st.write(
 st.write(
     f"Due: {len(get_due_words(st.session_state.words_df))}"
 )
-```
+
 
 # INSTALL
 
