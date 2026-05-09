@@ -171,7 +171,7 @@ def update_review(index, grade):
 # =====================
 # EASY
 # =====================
-    elif grade == "Easy"
+    elif grade == "Easy":
         interval = max(2, int(interval * ease * 1.5))
         repetitions += 1
         ease += 0.1
