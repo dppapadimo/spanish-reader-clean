@@ -348,34 +348,32 @@ type=["xlsx"]
 
 if uploaded_excel and not st.session_state.words_loaded:
 
-df = fix_columns(
-    pd.read_excel(uploaded_excel)
-)
+    df = fix_columns(
+        pd.read_excel(uploaded_excel))
 
-st.session_state.words_df = df.copy()
+    st.session_state.words_df = df.copy()
 
-st.session_state.words_loaded = True
+    st.session_state.words_loaded = True
 
-save_all()
+    save_all()
 
-st.sidebar.success("Words loaded")
+    st.sidebar.success("Words loaded")
 
 uploaded_log = st.sidebar.file_uploader(
-"Upload Logs",
-type=["xlsx"]
-)
+    "Upload Logs",
+    type=["xlsx"])
 
 if uploaded_log and not st.session_state.log_loaded:
 
-log = pd.read_excel(uploaded_log)
+    log = pd.read_excel(uploaded_log)
 
-st.session_state.log_df = log
+    st.session_state.log_df = log
 
-st.session_state.log_loaded = True
+    st.session_state.log_loaded = True
 
-save_all()
+    save_all()
 
-st.sidebar.success("Logs loaded")
+    st.sidebar.success("Logs loaded")
 
 
 # =========================================
