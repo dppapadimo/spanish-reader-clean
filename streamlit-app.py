@@ -107,10 +107,9 @@ def translate(word):
     try:
     return GoogleTranslator(
         source="auto",
-        target="el"
-    ).translate(word)
+        target="el").translate(word)
 
-except Exception as e:
+    except Exception as e:
     return f"Translation Error: {e}"
 
 def save_all():
