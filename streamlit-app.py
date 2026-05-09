@@ -80,7 +80,7 @@ for col in EXPECTED_COLS:
     if col not in df.columns:
         df[col] = ""
 
-return df[EXPECTED_COLS]
+    return df[EXPECTED_COLS]
 
 def load_words():
     if os.path.exists(WORDS_FILE):
