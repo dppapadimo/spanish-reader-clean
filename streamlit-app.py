@@ -216,16 +216,16 @@ save_all()
 # =========================================
 
 if "words_df" not in st.session_state:
-st.session_state.words_df = load_words()
+    st.session_state.words_df = load_words()
 
 if "log_df" not in st.session_state:
-st.session_state.log_df = load_log()
+    st.session_state.log_df = load_log()
 
 if "words_loaded" not in st.session_state:
-st.session_state.words_loaded = False
+    st.session_state.words_loaded = False
 
 if "log_loaded" not in st.session_state:
-st.session_state.log_loaded = False
+    st.session_state.log_loaded = False
 
 # =========================================
 
@@ -234,41 +234,41 @@ st.session_state.log_loaded = False
 # =========================================
 
 def add_word(word, translation, text):
-clean_word = word.strip().lower()
+    clean_word = word.strip().lower()
 
-df = st.session_state.words_df
+    df = st.session_state.words_df
 
-existing_words = (
-    df["word"]
-    .astype(str)
-    .str.lower()
-    .str.strip()
-    .values)
+    existing_words = (
+        df["word"]
+        .astype(str)
+        .str.lower()
+        .str.strip()
+        .values)
 
-if clean_word in existing_words:
-    return "duplicate", len(df)
+    if clean_word in existing_words:
+        return "duplicate", len(df)
 
-before = len(df)
+    before = len(df)
 
-new = {
-    "word": word.strip(),
-    "translation": translation,
-    "lemma": "",
-    "pos": "",
-    "sentence": text[:180],
-    "difficulty": "medium",
-    "date": str(date.today()),
-    "ease": 2.5,
-    "interval": 1,
-    "repetitions": 0,
-    "next_review": str(date.today()),
-    "status": "learning"}
+    new = {
+        "word": word.strip(),
+        "translation": translation,
+        "lemma": "",
+        "pos": "",
+        "sentence": text[:180],
+        "difficulty": "medium",
+        "date": str(date.today()),
+        "ease": 2.5,
+        "interval": 1,
+        "repetitions": 0,
+        "next_review": str(date.today()),
+        "status": "learning"}
 
-df = pd.concat(
-    [df, pd.DataFrame([new])],
-    ignore_index=True)
+    df = pd.concat(
+        [df, pd.DataFrame([new])],
+        ignore_index=True)
 
-st.session_state.words_df = df
+    st.session_state.words_df = df
 
 # =====================
 # UPDATE LOG
