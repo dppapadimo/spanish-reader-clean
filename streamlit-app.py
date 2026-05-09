@@ -100,7 +100,7 @@ def load_log():
         except:
             pass
 
-    return pd.DataFrame(columns=["date", "count"]
+    return pd.DataFrame(columns=["date", "count"])
 
 @st.cache_data(show_spinner=False)
 def translate(word):
