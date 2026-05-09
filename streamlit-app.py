@@ -85,22 +85,22 @@ for col in EXPECTED_COLS:
 def load_words():
     if os.path.exists(WORDS_FILE):
 
-    try:
-        return fix_columns(pd.read_excel(WORDS_FILE))
-    except:
-        pass
+        try:
+            return fix_columns(pd.read_excel(WORDS_FILE))
+        except:
+            pass
 
-return pd.DataFrame(columns=EXPECTED_COLS)
+    return pd.DataFrame(columns=EXPECTED_COLS)
 
 def load_log():
     if os.path.exists(LOG_FILE):
 
-    try:
-        return pd.read_excel(LOG_FILE)
-    except:
-        pass
+        try:
+            return pd.read_excel(LOG_FILE)
+        except:
+            pass
 
-return pd.DataFrame(columns=["date", "count"]
+    return pd.DataFrame(columns=["date", "count"]
 
 @st.cache_data(show_spinner=False)
 def translate(word):
